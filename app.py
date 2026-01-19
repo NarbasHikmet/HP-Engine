@@ -1,6 +1,6 @@
 # engine/app.py
 import streamlit as st
-from hp_engine_core import run_analysis
+from engine.hp_engine_core import run_analysis
 import os, json
 from datetime import datetime
 
