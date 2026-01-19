@@ -1,71 +1,96 @@
 import streamlit as st
 import pandas as pd
-import json, xml.etree.ElementTree as ET, pdfplumber
+import xml.etree.ElementTree as ET
+import json, chardet
 from io import StringIO, BytesIO
 
-st.set_page_config(page_title="HP Engine – Universal Reader vFinal", layout="wide")
-st.title("⚽ HP ENGINE – Evrensel Dosya Okuyucu (vFinal)")
-st.caption("Desteklenen formatlar: CSV, XLSX, JSON, XML, TXT, HTML, PDF")
+st.set_page_config(page_title="HP Engine – CSV & XML Reader", layout="wide")
+st.title("⚽ HP ENGINE – CSV & XML Reader vFinal")
+st.caption("Galatasaray & UEFA veri dosyaları için optimize edilmiştir")
 
-def read_file(uploaded):
-    name = uploaded.name
-    ext = name.split(".")[-1].lower()
-    content = uploaded.read()
+# -------------------------------
+# 1️⃣ Karakter kodlamasını tespit et
+# -------------------------------
+def detect_encoding(file_bytes):
+    detection = chardet.detect(file_bytes)
+    return detection.get("encoding", "utf-8")
+
+# -------------------------------
+# 2️⃣ CSV Okuyucu
+# -------------------------------
+def read_csv(file_bytes):
+    enc = detect_encoding(file_bytes)
+    text = file_bytes.decode(enc, errors="replace")
+
+    # Otomatik ayraç tespiti
+    if ";" in text and "," not in text:
+        sep = ";"
+    elif "\t" in text:
+        sep = "\t"
+    else:
+        sep = ","
+
+    df = pd.read_csv(StringIO(text), sep=sep)
+    return df.to_dict(orient="records")
+
+# -------------------------------
+# 3️⃣ XML Okuyucu
+# -------------------------------
+def read_xml(file_bytes):
+    enc = detect_encoding(file_bytes)
+    xml_str = file_bytes.decode(enc, errors="replace")
+    root = ET.fromstring(xml_str)
+
+    def parse_element(element):
+        parsed = {element.tag: {} if element.attrib else None}
+        children = list(element)
+        if children:
+            dd = {}
+            for dc in map(parse_element, children):
+                for k, v in dc.items():
+                    if k in dd:
+                        if isinstance(dd[k], list):
+                            dd[k].append(v)
+                        else:
+                            dd[k] = [dd[k], v]
+                    else:
+                        dd[k] = v
+            parsed[element.tag] = dd
+        if element.attrib:
+            parsed[element.tag].update(('@' + k, v) for k, v in element.attrib.items())
+        if element.text and element.text.strip():
+            text = element.text.strip()
+            if children or element.attrib:
+                parsed[element.tag]['#text'] = text
+            else:
+                parsed[element.tag] = text
+        return parsed
+
+    return parse_element(root)
+
+# -------------------------------
+# 4️⃣ Arayüz
+# -------------------------------
+uploaded = st.file_uploader("📤 Dosya yükle (CSV veya XML)", type=["csv", "xml"])
+if uploaded:
+    bytes_data = uploaded.read()
+    ext = uploaded.name.split(".")[-1].lower()
 
     try:
-        if ext == "json":
-            return json.loads(content.decode("utf-8"))
-
-        elif ext in ["csv", "tsv"]:
-            s = StringIO(content.decode("utf-8"))
-            df = pd.read_csv(s)
-            return df.to_dict(orient="records")
-
-        elif ext in ["xls", "xlsx"]:
-            df = pd.read_excel(BytesIO(content))
-            return df.to_dict(orient="records")
-
+        if ext == "csv":
+            data = read_csv(bytes_data)
         elif ext == "xml":
-            xml_str = content.decode("utf-8")
-            root = ET.fromstring(xml_str)
-            rows = [{c.tag: c.text for c in child} for child in root]
-            return rows or {root.tag: root.attrib}
-
-        elif ext == "txt":
-            return {"text": content.decode("utf-8")}
-
-        elif ext == "html":
-            s = StringIO(content.decode("utf-8"))
-            df = pd.read_html(s)[0]
-            return df.to_dict(orient="records")
-
-        elif ext == "pdf":
-            text_pages = []
-            with pdfplumber.open(BytesIO(content)) as pdf:
-                for page in pdf.pages:
-                    text_pages.append(page.extract_text())
-            return {"pdf_text": "\n\n".join(text_pages)}
-
+            data = read_xml(bytes_data)
         else:
-            raise ValueError(f"Desteklenmeyen format: {ext}")
+            st.error("Desteklenmeyen format.")
+            data = None
 
+        if data:
+            st.success("✅ Dosya başarıyla okundu.")
+            st.json(data)
     except Exception as e:
-        st.error(f"❌ Okuma hatası ({name}): {e}")
-        return None
-
-# Streamlit UI
-uploaded = st.file_uploader(
-    "📤 Dosya yükle (csv, xlsx, json, xml, txt, html, pdf)",
-    type=["csv","xlsx","xls","json","xml","txt","html","pdf"]
-)
-
-if uploaded:
-    st.info(f"İşleniyor → {uploaded.name}")
-    data = read_file(uploaded)
-    if data:
-        st.success("✅ Dosya başarıyla okundu.")
-        st.json(data)
-    else:
-        st.error("Dosya okunamadı.")
+        st.error(f"❌ Okuma hatası: {e}")
 else:
-    st.warning("Bir dosya yükle (CSV, XLSX, JSON, XML, TXT, HTML, PDF).")
+    st.info("Galatasaray veya UEFA dosyasını (.csv veya .xml) yükle.")
+
+st.caption("HP Engine CSV+XML Core v4.0 © Hikmet Pınarbaş 2026")
