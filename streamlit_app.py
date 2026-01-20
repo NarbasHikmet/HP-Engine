@@ -57,7 +57,7 @@ elif run and not files:
     st.warning("Dosya yüklemeden analiz çalıştırılamaz. (Metrics Explorer dosyasız çalışır.)")
 
 # ----------------------------
-# METRICS ENCYCLOPEDIA (independent from file upload)
+# METRICS ENCYCLOPEDIA (dosyadan bağımsız)
 # ----------------------------
 if show_metrics:
     st.divider()
