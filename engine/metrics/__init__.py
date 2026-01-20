@@ -1,3 +1,3 @@
 """
-Metrics subpackage (encyclopedia + calculators + API)
+Metrics subpackage (encyclopedia + API + Streamlit panel)
 """
