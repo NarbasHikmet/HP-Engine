@@ -1,46 +1,41 @@
 import streamlit as st
+import plotly.graph_objects as go
 from engine.hp_engine_reader import HPReader
 from engine.hp_engine_logic import HPLogic
-from engine.hp_engine_vision import HPVision
 
-st.set_page_config(page_title="HP Engine v24.1", layout="wide")
-st.title("🏛️ HP Engine: AURELIA Master System")
+st.set_page_config(page_title="AURELIA v2.5", layout="wide")
+st.title("🏛️ HP Engine: Otonom Zeka Ekosistemi")
 
 with st.sidebar:
-    st.header("1. Ana Analiz Modülü")
-    mode = st.selectbox("Kategori Seçiniz", [
+    st.header("SAPER VEDERE")
+    mode = st.selectbox("Analiz Kategorisi", [
         "Pre-Match Analysis", "Post-Match Analysis", "Individual Analysis",
-        "Team Tactical Analysis", "Seasonal & Tournament Analysis",
-        "Team Squad Engineering Analysis", "General Analysis"
+        "Team Tactical Analysis", "Seasonal Analysis", "Squad Engineering", "General Analysis"
     ])
-
-    st.header("2. Yardımcı Modüller")
-    v1 = st.checkbox("Video Analysis Analysis")
-    v2 = st.checkbox("Body Position and Orientation Analysis")
-    v3 = st.checkbox("Positional Analysis Analysis")
-
-    st.header("3. Veri Girişi")
-    files = st.file_uploader("Metrik/Belge Yükle (CSV, PDF, XML...)", accept_multiple_files=True)
-    videos = st.file_uploader("Video Yükle (MP4)", type=["mp4"], accept_multiple_files=True)
+    st.subheader("Yardımcı Katmanlar")
+    v1 = st.checkbox("YOLO11 Pose & Scanning")
+    v2 = st.checkbox("Vücut Oryantasyonu (Body Pos)")
     
-    run = st.button("ANALİZİ MÜHÜRLE")
+    files = st.file_uploader("Veri Enjeksiyonu (CSV, PDF, XML...)", accept_multiple_files=True)
+    run = st.button("HÜKMÜ MÜHÜRLE")
 
 if run and files:
-    # 1. Veri Okuma
-    reader = HPReader()
-    store = reader.ingest(files)
-    
-    # 2. Ana Analiz Seçimi
+    store = HPReader().ingest(files)
     logic = HPLogic()
-    if mode == "Pre-Match Analysis": res = logic.run_pre_match_analysis(store)
-    elif mode == "Post-Match Analysis": res = logic.run_post_match_analysis(store)
-    # ... Diğer modüller buraya eklenecek
+    result = logic.analyze_phase_logic(store, mode)
     
-    st.success(f"Ana Modül: {mode} aktif.")
-    st.write(res)
+    # Dashboard: Altın Oran Yerleşimi
+    c1, c2 = st.columns([1.618, 1])
+    with c1:
+        st.subheader(f"📊 {mode} Çıktısı")
+        st.write(result)
+        # xT Grid Görselleştirme
+        xt_data = logic.ana.calculate_xt(store["data"])
+        fig = go.Figure(data=go.Heatmap(z=xt_data, colorscale='Viridis'))
+        st.plotly_chart(fig, use_container_width=True)
     
-    # 3. Yardımcı Modüller (Seçilirse)
-    vision = HPVision()
-    if v1 and videos: st.info(vision.video_analysis_analysis(videos))
-    if v2: st.info(vision.body_position_orientation_rotation_analysis(store))
-    if v3: st.info(vision.positional_analysis_analysis(store))
+    with c2:
+        st.subheader("🧠 Kognitif Denetim (NAS)")
+        nas = logic.ana.detect_nas(store["data"])
+        if nas: st.error(f"Kritik NAS Tespit Edildi: {len(nas)} Sekans")
+        else: st.success("Kognitif Stabilite: Yüksek")
