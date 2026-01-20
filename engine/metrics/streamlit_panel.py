@@ -6,21 +6,13 @@ from .api import METRICS, MetricCategory, get_metric, get_summary, search_metric
 
 
 def render_metrics_explorer():
-    """
-    Drop-in Streamlit UI panel for browsing the metrics encyclopedia.
-    Safe to call from any Streamlit app.
-    """
-    st.subheader("📚 Football Metrics Encyclopedia")
+    st.subheader("📚 Metrics Encyclopedia (HP Engine)")
 
     summary = get_summary()
     st.caption(f"Total metrics: {summary.get('total_metrics', len(METRICS))}")
 
-    # Category overview
     with st.expander("Category summary", expanded=False):
-        cats = []
-        for c in MetricCategory:
-            cats.append((c.value, len(get_by_category(c))))
-        st.write({k: v for k, v in cats})
+        st.write({c.value: len(get_by_category(c)) for c in MetricCategory})
 
     mode = st.radio("Mode", ["Lookup by ID", "Search"], horizontal=True)
 
@@ -31,7 +23,6 @@ def render_metrics_explorer():
             st.error("Metric not found.")
             return
         _render_metric(m)
-
     else:
         q = st.text_input("Search (name / alias)", value="")
         if q.strip():
@@ -97,18 +88,3 @@ def _render_metric(m):
             } for r in m.references])
         else:
             st.write("—")
-
-    with st.expander("Use cases / Limitations", expanded=False):
-        st.write("**Use cases:**")
-        if m.use_cases:
-            for x in m.use_cases:
-                st.write(f"- {x}")
-        else:
-            st.write("- —")
-
-        st.write("**Limitations:**")
-        if m.limitations:
-            for x in m.limitations:
-                st.write(f"- {x}")
-        else:
-            st.write("- —")
