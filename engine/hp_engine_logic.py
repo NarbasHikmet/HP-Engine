@@ -1,21 +1,27 @@
+from engine.hp_engine_taxonomy import HPTaxonomy
+
 class HPLogic:
-    def run_pre_match_analysis(self, store):
-        return "Rakip DNA analizi ve stratejik öngörü mühürlendi."
-
-    def run_post_match_analysis(self, store):
-        return "Maç otopsisi ve sapma analizi tamamlandı."
-
-    def run_individual_analysis(self, store):
-        return "Oyuncu bazlı kognitif ve biyolojik performans raporu."
+    def __init__(self):
+        self.taxonomy = HPTaxonomy()
 
     def run_team_tactical_analysis(self, store):
-        return "Takım taktiksel faz dağılımı ve alan hakimiyeti."
-
-    def run_seasonal_tournament_analysis(self, store):
-        return "Uzun dönemli trend analizi ve sürdürülebilirlik raporu."
-
-    def run_team_squad_engineering_analysis(self, store):
-        return "Kadro mühendisliği ve somatotip uyum analizi."
-
-    def run_general_analysis(self, store):
-        return "Genel veri haritalandırması."
+        """
+        Takımın hangi ekolde olduğunu ve neye gereksinim duyduğunu analiz eder.
+        """
+        # 1. Gerçekleşen (MR) Verileri Al
+        actual_metrics = {"ppda": 10.5, "field_tilt": 58, "possession": 55} # Veriden gelecek
+        
+        # 2. Ekol Tespiti
+        detected_ekol = self.taxonomy.detect_philosophy(actual_metrics)
+        ideal_requirements = self.taxonomy.PHILOSOPHIES[detected_ekol]
+        
+        # 3. Sapma (Anomali) Analizi
+        # Örn: Ekol 60 possession istiyor ama biz 55 yapıyoruz.
+        gap_analysis = f"{detected_ekol} için %5 daha fazla topla oynama gereklidir."
+        
+        return {
+            "philosophy": detected_ekol,
+            "requirements": ideal_requirements["requirements"],
+            "gap_analysis": gap_analysis,
+            "squad_alignment": ideal_requirements["squad_needs"]
+        }
