@@ -1,28 +1,23 @@
 import pandas as pd
+import numpy as np
 
 class HPAnalytics:
     """
-    Metrik Ansiklopedisi Uygulama Katmanı.
-    Kaynak: 'Football Metrics Encyclopedia' (200+ Metrik).
+    HP Engine Metrik Ansiklopedisi Katmanı.
+    Referans: Football Metrics Research & Codification Document.
     """
-    def calculate_xt(self, event_df):
-        """
-        Expected Threat (xT) - Topun taşındığı bölgenin gol ihtimaline katkısı.
-        """
-        # xT Grid matrisi üzerinden hesaplama mantığı
-        return 0.15 # Örnek xT katkısı
+    
+    def calculate_xt(self, df):
+        """Expected Threat (xT) - Topun ilerletilme değeri."""
+        # Gerçek xT Grid hesaplaması buraya gelecek
+        return 0.18 # Örnek çıktı
 
-    def calculate_packing_rate(self, pass_df):
-        """
-        Packing Rate - Bir pasla kaç rakip oyuncunun devre dışı bırakıldığı.
-        """
-        # Geçilen rakip sayısı hesabı
-        return 3 
+    def calculate_packing_rate(self, df):
+        """Packing Rate - Devre dışı bırakılan rakip oyuncu sayısı."""
+        # Line-breaking pass analizi
+        return 4 
 
-    def analyze_somatotype_suitability(self, somatotype, role):
-        """
-        Oyuncunun biyolojik yapısının (Somatotip) pozisyonuna uygunluğu.
-        Kaynak: 'Somatotip Analiz Raporu'.
-        """
-        # Mezomorfik ağırlıklı bir stoper uygunluğu gibi
-        return "High Match"
+    def analyze_physical_load(self, player_data):
+        """ACWR (Acute:Chronic Workload Ratio) - Sakatlık Risk Analizi."""
+        # Kaynak: HP Motor Biyolojik Veri Dokümanı
+        return 1.15 # Güvenli bölge (0.8 - 1.3)
