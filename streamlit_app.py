@@ -27,6 +27,9 @@ with st.sidebar:
 
     st.divider()
     files = st.file_uploader("Veri/Belge Yükle", accept_multiple_files=True)
+
+st.divider()
+show_metrics = st.toggle("📚 Metrics Encyclopedia", value=False)
     run = st.button("HÜKMÜ MÜHÜRLE")
 
 # ----------------------------
