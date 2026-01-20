@@ -1,23 +1,44 @@
 from engine.hp_engine_logic import HPLogic
+from engine.hp_engine_analytics import HPAnalytics
+from engine.hp_engine_vision import HPVision
 
 class HPManager:
-    """Mantık ve Veriyi Birleştiren Stratejik Katman."""
+    """7 Ana ve 3 Yardımcı Modülü koordine eden Master Orchestrator."""
     
-    def run_analysis(self, data, team_name):
+    def run_hybrid_analysis(self, files, videos, mode, helpers):
+        # 1. Veri Okuma
+        from engine.hp_engine_reader import HPReader
+        reader = HPReader()
+        store = reader.ingest(files)
+        
         logic = HPLogic()
+        analytics = HPAnalytics()
+        vision = HPVision()
         
-        # 1. Taktiksel Analiz
-        actual_scores = logic.get_tactical_phases(data["events"])
-        ppda_val = logic.calculate_ppda(data["events"])
+        # 2. Ana Analiz Seçimi (7 Modül)
+        analysis_map = {
+            "Pre-Match Analysis": logic.run_pre_match_analysis,
+            "Post-Match Analysis": logic.run_post_match_analysis,
+            "Individual Analysis": logic.run_individual_analysis,
+            "Team Tactical Analysis": logic.run_team_tactical_analysis,
+            "Seasonal & Tournament Analysis": logic.run_seasonal_tournament_analysis,
+            "Team Squad Engineering Analysis": logic.run_team_squad_engineering_analysis,
+            "General Analysis": logic.run_general_analysis
+        }
         
-        # 2. Somatotip (Örnek Ortalama Veri)
-        somato = logic.calculate_somatotype(10, 12, 10, 8, 185, 80)
+        main_result = analysis_map.get(mode, logic.run_general_analysis)(store)
         
+        # 3. Yardımcı Modüller (3 Modül - Seçmeli)
+        helper_results = {}
+        if helpers.get("video") and videos:
+            helper_results["video"] = vision.video_analysis_analysis(videos)
+        if helpers.get("body"):
+            helper_results["body"] = vision.body_position_orientation_rotation_analysis(store)
+        if helpers.get("positional"):
+            helper_results["positional"] = vision.positional_analysis_analysis(store)
+            
         return {
-            "team": team_name,
-            "expected": {"Kurulum": 75, "Baskı": 80, "Geçiş": 75, "Savunma": 85, "Bitiricilik": 65},
-            "actual": actual_scores,
-            "ppda": ppda_val,
-            "somatotype": somato,
-            "narrative": f"Marcello Lippi: {team_name} bugün {ppda_val} PPDA şiddetiyle 'Baskı' fazında egemenlik kurdu."
+            "main": main_result,
+            "helpers": helper_results,
+            "metadata": {"team": "Analiz Edilen Birim", "mode": mode}
         }
