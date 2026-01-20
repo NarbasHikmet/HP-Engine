@@ -2,24 +2,35 @@ import pandas as pd
 import io
 import pdfplumber
 from docx import Document
+import xml.etree.ElementTree as ET
 
 class HPReader:
     def ingest(self, uploaded_files):
-        store = {"data": pd.DataFrame(), "texts": [], "raw_xml": []}
+        """Multi-format veri emici: CSV, XML, XLSX, PDF, DOCX, TXT."""
+        store = {"data": pd.DataFrame(), "texts": [], "xml_data": []}
+        
         for f in uploaded_files:
             name = f.name.lower()
+            content = f.read()
+            
             if name.endswith('.csv'):
-                store["data"] = pd.concat([store["data"], pd.read_csv(f)], ignore_index=True)
+                df = pd.read_csv(io.BytesIO(content))
+                store["data"] = pd.concat([store["data"], df], ignore_index=True)
             elif name.endswith(('.xlsx', '.xls')):
-                store["data"] = pd.concat([store["data"], pd.read_excel(f)], ignore_index=True)
+                df = pd.read_excel(io.BytesIO(content))
+                store["data"] = pd.concat([store["data"], df], ignore_index=True)
             elif name.endswith('.pdf'):
-                with pdfplumber.open(f) as pdf:
-                    store["texts"].append(" ".join([page.extract_text() for page in pdf.pages]))
+                with pdfplumber.open(io.BytesIO(content)) as pdf:
+                    text = " ".join([page.extract_text() for page in pdf.pages if page.extract_text()])
+                    store["texts"].append({"file": name, "content": text})
             elif name.endswith('.docx'):
-                doc = Document(f)
-                store["texts"].append(" ".join([para.text for para in doc.paragraphs]))
-            elif name.endswith('.txt'):
-                store["texts"].append(f.read().decode("utf-8"))
+                doc = Document(io.BytesIO(content))
+                text = " ".join([para.text for para in doc.paragraphs])
+                store["texts"].append({"file": name, "content": text})
             elif name.endswith('.xml'):
-                store["raw_xml"].append(f.read().decode("utf-8"))
+                tree = ET.ElementTree(ET.fromstring(content))
+                store["xml_data"].append({"file": name, "content": tree})
+            elif name.endswith('.txt'):
+                store["texts"].append({"file": name, "content": content.decode("utf-8")})
+        
         return store
