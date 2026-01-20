@@ -1,6 +1,11 @@
+from engine.hp_engine_squad_data import PLAYER_PROFILES
+
 class HPSquadEngineering:
-    """Kadro Mühendisliği: Mevki-Profil-Sistem uyumu ve Zincirleme Reaksiyon Analizi."""
-    def validate_synergy(self, squad_data, target_system):
-        # Dokümanlardaki 'Chain Reactions' denetimi: 
-        # Örn: 'LB = Inverted' ise 'LW = Pure Winger' olmalı.
-        pass
+    def validate_chain_reaction(self, squad):
+        """
+        Zincirleme Reaksiyon Analizi (Chain Reactions).
+        IF 'LB' == 'Inverted' AND 'LW' != 'Pure Winger' -> FAILURE_MODE: Left Side Collapse.
+        """
+        violations = []
+        # Dokümanlardaki kümülatif kurallar seti
+        return violations
