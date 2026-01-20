@@ -23,21 +23,16 @@ __all__ = [
 ]
 
 def get_metric(metric_id: str) -> Optional[MetricDefinition]:
-    """Safe getter (canonical access point)."""
     return _get_metric(metric_id)
 
 def search_metrics(query: str) -> List[MetricDefinition]:
-    """Search by name/alias."""
     return _search_metrics(query)
 
 def get_summary() -> Dict[str, Any]:
-    """High-level encyclopedia summary."""
     return _get_summary()
 
 def list_metric_ids() -> List[str]:
-    """All metric IDs sorted."""
     return sorted(METRICS.keys())
 
 def get_by_category(category: MetricCategory) -> List[MetricDefinition]:
-    """Return all metrics in a category."""
     return [m for m in METRICS.values() if m.category == category]
