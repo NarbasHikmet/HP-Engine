@@ -1,15 +1,23 @@
 streamlit>=1.34
 pandas>=2.0
 numpy>=1.25
-scipy>=1.11
-# Veri Görselleştirme
 plotly>=5.18
 matplotlib>=3.8
 mplsoccer>=1.2
-# Bilgisayarlı Görü (Vision Modülü İçin)
-opencv-python-headless>=4.8
-ultralytics>=8.0  # YOLOv8 için
-# İleri Analitik
-scikit-learn>=1.3
-networkx>=3.2     # Pas ağları için
-kloppy>=3.9       # Veri standardizasyonu için
+scipy>=1.11
+pdfplumber>=0.11
+python-docx>=1.1
+lxml>=5.0
+pyyaml>=6.0
+openpyxl>=3.1.0
+
+# --- VISION & YOLO11 ---
+ultralytics>=8.3.0  # YOLO11 desteği bu sürümle gelir
+opencv-python-headless>=4.8.0
+
+# --- FOOTBALL DATA & NETWORKS ---
+kloppy>=3.9.0
+networkx>=3.2
+
+# --- ML & MODELING ---
+scikit-learn>=1.3.0
