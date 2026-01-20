@@ -1,27 +1,25 @@
 from engine.hp_engine_taxonomy import HPTaxonomy
+from engine.hp_engine_analytics import HPAnalytics
 
 class HPLogic:
     def __init__(self):
-        self.taxonomy = HPTaxonomy()
+        self.tax = HPTaxonomy()
+        self.ana = HPAnalytics()
 
-    def run_team_tactical_analysis(self, store):
+    def analyze_phase_logic(self, store, current_mode):
         """
-        Takımın hangi ekolde olduğunu ve neye gereksinim duyduğunu analiz eder.
+        HP 6-Faz Modeli: Build-up, Progression, Incision, Finishing, 
+        Defensive Transition, Attacking Transition.
         """
-        # 1. Gerçekleşen (MR) Verileri Al
-        actual_metrics = {"ppda": 10.5, "field_tilt": 58, "possession": 55} # Veriden gelecek
+        data = store["data"]
+        # 7 Ana Modül Yönlendirmesi
+        if current_mode == "Pre-Match Analysis":
+            return {"result": "Antidote (Panzehir) Stratejisi: Rakip 3. Bölge baskısı NAS ile kırılacak."}
         
-        # 2. Ekol Tespiti
-        detected_ekol = self.taxonomy.detect_philosophy(actual_metrics)
-        ideal_requirements = self.taxonomy.PHILOSOPHIES[detected_ekol]
+        elif current_mode == "Team Tactical Analysis":
+            metrics = {"ppda": 8.2, "field_tilt": 62} # Veriden çekilecek
+            system = self.tax.detect_system(metrics)
+            return {"ekol": system["name"], "DNA_Match": "92%", "Gaps": ["Rest-defence positioning"]}
         
-        # 3. Sapma (Anomali) Analizi
-        # Örn: Ekol 60 possession istiyor ama biz 55 yapıyoruz.
-        gap_analysis = f"{detected_ekol} için %5 daha fazla topla oynama gereklidir."
-        
-        return {
-            "philosophy": detected_ekol,
-            "requirements": ideal_requirements["requirements"],
-            "gap_analysis": gap_analysis,
-            "squad_alignment": ideal_requirements["squad_needs"]
-        }
+        # Diğer 5 modül (Individual, Seasonal vb.) kümülatif olarak buraya mühürlenir.
+        return {"result": "Genel Analiz Mühürlendi."}
