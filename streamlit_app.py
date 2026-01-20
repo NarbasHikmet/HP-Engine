@@ -66,4 +66,4 @@ if show_metrics:
         render_metrics_explorer()
     except Exception as e:
         st.error("Metrics modülü yüklenemedi. engine/__init__.py ve engine/metrics/__init__.py kontrol et.")
-        st.code(str(e))
+        st.code(str(e)) 
