@@ -29,3 +29,13 @@ if run and files:
         st.subheader("🧠 Kognitif / Fiziksel Yük")
         # ACWR ve NAS görselleştirme
         st.info("ACWR: 1.12 (Safe)")
+# --- Metrics Encyclopedia integration (HP-Engine) ---
+try:
+    from engine.metrics.streamlit_panel import render_metrics_explorer
+
+    st.divider()
+    render_metrics_explorer()
+except Exception as e:
+    # Uygulama kırılmasın diye: sadece uyarı göster
+    import streamlit as st
+    st.warning(f"Metrics module not available yet: {e}")
