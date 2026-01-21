@@ -266,3 +266,15 @@ def get_summary() -> Dict[str, Any]:
         "categories": {c.value: len([m for m in METRICS.values() if m.category == c])
                        for c in MetricCategory}
     }
+def search_metrics(query: str) -> List[MetricDefinition]:
+    q = (query or "").lower().strip()
+    if not q:
+        return []
+    out: List[MetricDefinition] = []
+    for m in METRICS.values():
+        if q in m.metric_id.lower() or q in m.full_name.lower():
+            out.append(m)
+            continue
+        if any(q in a.lower() for a in (m.aliases or [])):
+            out.append(m)
+    return out
