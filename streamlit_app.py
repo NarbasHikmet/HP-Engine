@@ -95,10 +95,19 @@ if show_metrics:
         st.code(str(e))
 if show_metrics:
     st.divider()
+    # ----------------------------
+# METRICS ENCYCLOPEDIA (independent from file upload)
+# ----------------------------
+if show_metrics:
+    st.divider()
     try:
         from engine.metrics.api import get_summary
         st.success("metrics import OK")
         st.json(get_summary())
+
+        from engine.metrics.streamlit_panel import render_metrics_explorer
+        render_metrics_explorer()
+
     except Exception as e:
-        st.error("metrics import FAILED")
+        st.error("metrics import FAILED (dosya yolu / init / klasör yapısı)")
         st.code(str(e))
