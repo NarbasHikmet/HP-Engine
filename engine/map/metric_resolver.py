@@ -24,11 +24,11 @@ class ResolveResult:
 class MetricResolver:
     """
     Canonical resolver using:
-      - canon/ontology/metric_ontology.json  (aliases + canonical families)
+      - canon/ontology/<existing metric ontology json> (aliases + canonical family ids)
       - canon/mappings/platform_mappings.json (canonical_to_platforms)
 
-    Note: platform_mappings.json is CANONICAL -> {Platform: MetricName}
-          so we invert it at load time to get (platform, raw_metric) -> canonical.
+    platform_mappings.json is CANONICAL_LABEL -> {Platform: RawMetricName}
+    We invert it to (platform, raw_metric) -> canonical_family
     """
 
     def __init__(
@@ -42,34 +42,46 @@ class MetricResolver:
         self.ontology = self._load_json(self.ontology_path)
         self.mappings = self._load_json(self.mappings_path)
 
-        # Build alias index from ontology
+        # alias -> canonical_family_id (from ontology)
         self.alias_to_canonical: dict[str, str] = {}
         fams = (self.ontology or {}).get("canonical_families", {})
         if isinstance(fams, dict):
-            for canonical, meta in fams.items():
-                self.alias_to_canonical[_norm(canonical)] = canonical
+            for canonical_id, meta in fams.items():
+                self.alias_to_canonical[_norm(canonical_id)] = canonical_id
                 if isinstance(meta, dict):
                     nm = meta.get("name")
                     if isinstance(nm, str) and nm.strip():
-                        self.alias_to_canonical[_norm(nm)] = canonical
+                        self.alias_to_canonical[_norm(nm)] = canonical_id
+                    tr = meta.get("turkish")
+                    if isinstance(tr, str) and tr.strip():
+                        self.alias_to_canonical[_norm(tr)] = canonical_id
                     for a in (meta.get("aliases", []) or []):
-                        self.alias_to_canonical[_norm(a)] = canonical
-                    short = meta.get("short")
-                    if isinstance(short, str) and short.strip():
-                        self.alias_to_canonical[_norm(short)] = canonical
+                        if isinstance(a, str) and a.strip():
+                            self.alias_to_canonical[_norm(a)] = canonical_id
 
-        # Invert canonical_to_platforms to (platform, raw_metric) -> canonical
+        # (platform, raw_metric) -> canonical_family_id
         self.platform_raw_to_canonical: dict[tuple[str, str], str] = {}
+
         c2p = (self.mappings or {}).get("canonical_to_platforms", {})
         if isinstance(c2p, dict):
-            for canonical_short, plat_map in c2p.items():
+            for canonical_label, plat_map in c2p.items():
                 if not isinstance(plat_map, dict):
                     continue
-                # Map short key (e.g., "xG") to canonical family via ontology if possible
-                canonical_family = self.alias_to_canonical.get(_norm(canonical_short), canonical_short)
+
+                # canonical_label might be "xG", "PSxG", "PPDA", "Possession Value", etc.
+                canonical_id = self.alias_to_canonical.get(_norm(canonical_label))
+                if canonical_id is None:
+                    # unknown label; skip (better than wrong mapping)
+                    continue
+
                 for platform, raw_name in plat_map.items():
-                    if isinstance(platform, str) and isinstance(raw_name, str):
-                        self.platform_raw_to_canonical[(_norm(platform), _norm(raw_name))] = canonical_family
+                    if not (isinstance(platform, str) and isinstance(raw_name, str)):
+                        continue
+                    self.platform_raw_to_canonical[(_norm(platform), _norm(raw_name))] = canonical_id
+
+                # optional "All": apply mapping for any platform token
+                if "All" in plat_map and isinstance(plat_map["All"], str):
+                    self.platform_raw_to_canonical[("all", _norm(plat_map["All"]))] = canonical_id
 
     @staticmethod
     def _load_json(p: Path) -> Any:
@@ -80,17 +92,22 @@ class MetricResolver:
     def resolve(self, raw_metric_name: str, platform: Optional[str] = None) -> ResolveResult:
         raw_n = _norm(raw_metric_name)
         plat_n = _norm(platform) if platform else None
-        details: dict = {"raw": raw_metric_name, "raw_norm": raw_n, "platform": platform}
+        details = {"raw": raw_metric_name, "raw_norm": raw_n, "platform": platform}
 
         # 1) platform mapping (strongest)
         if plat_n:
             hit = self.platform_raw_to_canonical.get((plat_n, raw_n))
             if hit:
-                return ResolveResult(canonical_family=hit, match="platform_mapping_inverted", details=details)
+                return ResolveResult(hit, "platform_mapping_inverted", details)
 
-        # 2) ontology alias/name/short
+            # allow generic mapping via "All"
+            hit = self.platform_raw_to_canonical.get(("all", raw_n))
+            if hit:
+                return ResolveResult(hit, "platform_mapping_all", details)
+
+        # 2) ontology alias/name
         hit = self.alias_to_canonical.get(raw_n)
         if hit:
-            return ResolveResult(canonical_family=hit, match="ontology_alias", details=details)
+            return ResolveResult(hit, "ontology_alias", details)
 
-        return ResolveResult(canonical_family=None, match="unknown", details=details)
+        return ResolveResult(None, "unknown", details)
