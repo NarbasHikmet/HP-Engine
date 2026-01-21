@@ -1,0 +1,9 @@
+version: "1.0.0"
+benchmarks:
+  PPDA:
+    model: contextual
+    rows:
+      - context: {league: "LaLiga", season: "2025-26", venue: "away", opponent_tier: "top4"}
+        thresholds: {elite: "<8.5", good: "8.5-11", average: "11-14"}
+      - context: {league: "LaLiga", season: "2025-26", venue: "home", opponent_tier: "bottom6"}
+        thresholds: {elite: "<5.0", good: "5.0-7.0", average: "7.0-10.0"}
