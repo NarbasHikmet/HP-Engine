@@ -1,11 +1,10 @@
-# engine/map/metric_resolver.py
 from __future__ import annotations
 
 import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional, Tuple
+from typing import Any, Optional
 
 
 def _norm(s: str) -> str:
@@ -24,9 +23,11 @@ class ResolveResult:
 
 class MetricResolver:
     """
-    Resolves raw metric names to canonical metric families using:
-      1) canon/mappings/platform_mappings.json (platform-specific)
-      2) canon/ontology/metric_ontology.json (aliases/names)
+    Platform + alias aware canonical resolver.
+
+    Files (repo-relative):
+      - canon/ontology/metric_ontology.json
+      - canon/mappings/platform_mappings.json
     """
 
     def __init__(
@@ -40,20 +41,14 @@ class MetricResolver:
         self.ontology = self._load_json(self.ontology_path)
         self.mappings = self._load_json(self.mappings_path)
 
-        # Build alias index from ontology
         self.alias_to_canonical: dict[str, str] = {}
         for canonical, meta in (self.ontology or {}).items():
             if isinstance(meta, dict):
-                aliases = meta.get("aliases", []) or []
-                for a in aliases:
+                for a in (meta.get("aliases", []) or []):
                     self.alias_to_canonical[_norm(a)] = canonical
-
-                # Optional: match by displayed name if present
                 nm = meta.get("name")
                 if isinstance(nm, str) and nm.strip():
                     self.alias_to_canonical[_norm(nm)] = canonical
-
-            # always allow canonical key itself
             self.alias_to_canonical[_norm(canonical)] = canonical
 
     @staticmethod
