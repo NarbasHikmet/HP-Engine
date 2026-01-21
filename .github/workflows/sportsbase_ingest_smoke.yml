@@ -32,4 +32,4 @@ jobs:
           name: sportsbase_ingest_out
           path: |
             engine/ingest/out/clips_summary.json
-            engine/ingest/out/clips.jsonl
+            engine/ingest/out/clips.jsonl 
