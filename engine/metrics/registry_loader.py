@@ -17,4 +17,4 @@ def get_metric_spec(metric_id: str):
     metrics = reg.get("metrics", {})
     if metric_id not in metrics:
         raise KeyError(f"Metric '{metric_id}' not found in registry")
-    return metrics[metric_id]
+    return metrics[metric_id] 
