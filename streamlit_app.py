@@ -95,7 +95,7 @@ if show_metrics:
         st.code(str(e))
 if show_metrics:
     st.divider()
-    # ----------------------------
+   # ----------------------------
 # METRICS ENCYCLOPEDIA (independent from file upload)
 # ----------------------------
 if show_metrics:
