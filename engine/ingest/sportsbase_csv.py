@@ -3,24 +3,19 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import os
 import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass, asdict
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Iterable, Iterator, List, Optional, Tuple
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 
-
-# ----------------------------
-# Utilities
-# ----------------------------
 
 _NUM_RE = re.compile(r"\d+")
 _WS_RE = re.compile(r"\s+")
 
 
-def _safe_float(x: str) -> Optional[float]:
+def _safe_float(x: Any) -> Optional[float]:
     if x is None:
         return None
     s = str(x).strip().replace(",", ".")
@@ -32,7 +27,7 @@ def _safe_float(x: str) -> Optional[float]:
         return None
 
 
-def _safe_int(x: str) -> Optional[int]:
+def _safe_int(x: Any) -> Optional[int]:
     if x is None:
         return None
     s = str(x).strip()
@@ -44,7 +39,7 @@ def _safe_int(x: str) -> Optional[int]:
         return None
 
 
-def _norm_text(s: str) -> str:
+def _norm_text(s: Any) -> str:
     if s is None:
         return ""
     s = str(s).strip()
@@ -59,22 +54,8 @@ def _read_json(path: Path) -> Dict:
         return json.load(f)
 
 
-def _extract_first_int(s: str) -> Optional[int]:
-    if not s:
-        return None
-    m = _NUM_RE.search(s)
-    if not m:
-        return None
-    try:
-        return int(m.group(0))
-    except Exception:
-        return None
-
-
 def _guess_category(action_raw: str) -> str:
-    """Heuristic category for unmapped actions (clip labels)."""
     a = action_raw.lower()
-    # TR/EN rough buckets
     if "şut" in a or "shot" in a or "gol" in a or "goal" in a or "psxg" in a:
         return "SHOT"
     if "pas" in a or "pass" in a or "cross" in a or "orta" in a:
@@ -90,36 +71,23 @@ def _guess_category(action_raw: str) -> str:
     return "OTHER"
 
 
-# ----------------------------
-# Data model
-# ----------------------------
-
 @dataclass
 class ClipRow:
     source_file: str
     row_id: Optional[int]
     match_id: Optional[str]
-
     start_s: Optional[float]
     end_s: Optional[float]
     half: Optional[int]
-
     team_id: Optional[int]
     player_id: Optional[int]
-
     code_raw: str
     action_raw: str
-
     action_canonical: str
     action_category: str
-
     pos_x: Optional[float]
     pos_y: Optional[float]
 
-
-# ----------------------------
-# Core parser
-# ----------------------------
 
 def iter_csv_files(sample_dir: Path) -> Iterator[Path]:
     for p in sample_dir.rglob("*.csv"):
@@ -128,46 +96,27 @@ def iter_csv_files(sample_dir: Path) -> Iterator[Path]:
 
 
 def load_action_mappings(repo_root: Path) -> Tuple[Dict[str, str], Dict[str, str]]:
-    """
-    Loads:
-      - canon/mappings/signal_mappings.json   (TR label -> canonical)
-      - canon/mappings/tr_action_aliases.json (optional: aliases -> TR label or canonical)
-    """
     signal_map = _read_json(repo_root / "canon" / "mappings" / "signal_mappings.json")
-
-    # aliases file is optional
     alias_map = _read_json(repo_root / "canon" / "mappings" / "tr_action_aliases.json")
 
-    # normalize keys for robust matching
-    norm_signal_map = {_norm_text(k): v for k, v in signal_map.items()}
-    norm_alias_map = {_norm_text(k): v for k, v in alias_map.items()}
-
-    return norm_signal_map, norm_alias_map
+    signal_map = {_norm_text(k): v for k, v in signal_map.items()}
+    alias_map = {_norm_text(k): v for k, v in alias_map.items()}
+    return signal_map, alias_map
 
 
 def canonicalize_action(action_raw: str, signal_map: Dict[str, str], alias_map: Dict[str, str]) -> str:
     a = _norm_text(action_raw)
     if a in alias_map:
-        # alias can point to TR label or already canonical; accept both
         aliased = _norm_text(alias_map[a])
         if aliased in signal_map:
             return signal_map[aliased]
         return aliased
-
     if a in signal_map:
         return signal_map[a]
-
     return "unmapped"
 
 
-def parse_row(
-    file_path: Path,
-    row: Dict[str, str],
-    signal_map: Dict[str, str],
-    alias_map: Dict[str, str],
-    match_id: Optional[str],
-) -> ClipRow:
-    # Column names seen in your datasets: ID, start, end, code, action, half, pos_x, pos_y
+def parse_row(file_path: Path, row: Dict[str, str], signal_map: Dict[str, str], alias_map: Dict[str, str], match_id: str) -> ClipRow:
     row_id = _safe_int(row.get("ID") or row.get("id"))
     start_s = _safe_float(row.get("start"))
     end_s = _safe_float(row.get("end"))
@@ -176,16 +125,9 @@ def parse_row(
     code_raw = _norm_text(row.get("code", ""))
     action_raw = _norm_text(row.get("action", ""))
 
-    # Try to get ids from code (best-effort)
-    team_id = None
-    player_id = None
-
-    # If code contains multiple numbers, take first as team, second as player (heuristic)
     nums = [int(x) for x in _NUM_RE.findall(code_raw)] if code_raw else []
-    if len(nums) >= 1:
-        team_id = nums[0]
-    if len(nums) >= 2:
-        player_id = nums[1]
+    team_id = nums[0] if len(nums) >= 1 else None
+    player_id = nums[1] if len(nums) >= 2 else None
 
     pos_x = _safe_float(row.get("pos_x"))
     pos_y = _safe_float(row.get("pos_y"))
@@ -211,26 +153,15 @@ def parse_row(
     )
 
 
-def parse_csv_file(
-    file_path: Path,
-    signal_map: Dict[str, str],
-    alias_map: Dict[str, str],
-) -> List[ClipRow]:
-    # match_id: use parent folder + file stem as stable id
+def parse_csv_file(file_path: Path, signal_map: Dict[str, str], alias_map: Dict[str, str]) -> List[ClipRow]:
     match_id = f"{file_path.parent.name}/{file_path.stem}"
-
     rows: List[ClipRow] = []
     with file_path.open("r", encoding="utf-8", errors="replace", newline="") as f:
-        # SportsBase CSV are usually ';' delimited
         reader = csv.DictReader(f, delimiter=";")
         for r in reader:
             rows.append(parse_row(file_path, r, signal_map, alias_map, match_id))
     return rows
 
-
-# ----------------------------
-# Output + summary
-# ----------------------------
 
 def write_jsonl(out_path: Path, rows: Iterable[ClipRow]) -> int:
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -274,9 +205,9 @@ def build_summary(all_rows: List[ClipRow]) -> Dict:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="SportsBase CSV -> canonical clip registry (jsonl + summary)")
-    ap.add_argument("--sample-dir", required=True, help="Directory containing SportsBase CSV files")
-    ap.add_argument("--out-dir", default="engine/ingest/out", help="Output directory")
-    ap.add_argument("--repo-root", default=".", help="Repo root (to load canon/mappings)")
+    ap.add_argument("--sample-dir", required=True)
+    ap.add_argument("--out-dir", default="engine/ingest/out")
+    ap.add_argument("--repo-root", default=".")
     args = ap.parse_args()
 
     sample_dir = Path(args.sample_dir)
@@ -290,11 +221,11 @@ def main() -> int:
 
     all_rows: List[ClipRow] = []
     csv_files = list(iter_csv_files(sample_dir))
+
     for fp in csv_files:
         try:
             all_rows.extend(parse_csv_file(fp, signal_map, alias_map))
         except Exception as e:
-            # Keep ingest robust: record file-level failure in summary
             all_rows.append(
                 ClipRow(
                     source_file=str(fp.as_posix()),
@@ -327,7 +258,6 @@ def main() -> int:
     summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
 
     print(json.dumps({"clips_jsonl": str(clips_path), "summary_json": str(summary_path), "total_rows": len(all_rows)}, ensure_ascii=False))
-    # Fail smoke test only if we parsed nothing
     return 0 if len(all_rows) > 0 else 2
 
 
