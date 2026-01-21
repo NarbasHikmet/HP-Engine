@@ -36,3 +36,15 @@ def list_metric_ids() -> List[str]:
 
 def get_by_category(category: MetricCategory) -> List[MetricDefinition]:
     return [m for m in METRICS.values() if m.category == category]
+def search_metrics(query: str) -> List[MetricDefinition]:
+    q = (query or "").lower().strip()
+    if not q:
+        return []
+    out = []
+    for m in METRICS.values():
+        if q in m.metric_id.lower() or q in m.full_name.lower():
+            out.append(m)
+            continue
+        if any(q in a.lower() for a in (m.aliases or [])):
+            out.append(m)
+    return out
