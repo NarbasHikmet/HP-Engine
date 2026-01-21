@@ -1,4 +1,5 @@
 import streamlit as st
+st.write("APP LOADED")
 import pandas as pd
 import xml.etree.ElementTree as ET
 import unicodedata
