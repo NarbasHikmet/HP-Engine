@@ -40,3 +40,11 @@ jobs:
           print("ready:", c.get("ready"))
           print("blocked:", c.get("blocked"))
           PY
+
+- name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: hp-metric-registry
+          path: |
+            engine/metrics/registry.json
+            engine/metrics/metric_graph.json
