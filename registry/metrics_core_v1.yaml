@@ -1,4 +1,4 @@
-version: "1.0.0"
+version: "0.1.0"
 metrics:
 
   - canonical_name: PPDA
@@ -7,66 +7,75 @@ metrics:
     unit: "ratio"
     polarity: -1
     status: ACTIVE
-    version: "1.0.0"
+    version: "0.1.0"
+
     data_requirements:
       required_sources: [event]
-      required_fields: [team_id, opponent_id, event_type, event_subtype, x, y, timestamp]
-      optional_fields: [pressure, duel_type]
+      required_fields: [match_id, team_id, opponent_team_id, event_type, timestamp, x, y]
+      optional_fields: [possession_id, subtype]
       minimum_granularity: action
+
     modes:
       FULL:
         logic_method: "calc_ppda_full_v1"
-        min_confidence: 0.7
+        min_confidence: 0.65
       DEGRADED:
         logic_method: "calc_ppda_proxy_v1"
-        min_confidence: 0.5
-        proxy_note: "If defensive action taxonomy incomplete, proxy uses tackles+interceptions only."
+        min_confidence: 0.45
+        proxy_note: "If opponent_team_id missing, infer opponent via non-team events; mark DEGRADED."
+
     lineage:
       source: "canonical_event_model"
       derivation: "def_actions / opp_passes_in_build_zone"
-      assumptions: ["pitch normalized 105x68", "build_zone defined by x>35"]
+      assumptions: ["coordinates in 105x68", "build_zone defined in canon/rules later"]
+
     grouping:
       phase_tags: [F3, F6]
       dimension_tags: [tactical]
       hierarchy_level: L2
       entity_level: team
       time_grain: rolling_10
+
     aggregation:
       aggregation_levels: [team]
       rollup_method: null
       weight_field: null
       denominator: none
+
     temporal_dynamics:
       phase_splits: [0-15,15-30,30-45,45-60,60-75,75-90]
       rolling_windows: [10]
       event_windows:
         - event: goal_conceded
           window: [-5, +10]
-        - event: substitution
-          window: [0, +5]
+
     falsifiability:
       h0: "Team cannot press effectively"
       h1: "Team presses effectively"
-      supports: [OPP_BUILDUP_SUCCESS, LOW_REGAIN_6S]
-      contradicts: [HIGH_COUNTERPRESS_SUCCESS]
+      supports: [REGAIN_6S]
+      contradicts: [OPP_PASS_COMPLETION_DEF3]
       min_sample: ">=200 opponent passes or >=3 matches"
-      confidence_floor: 0.65
+      confidence_floor: 0.6
       conflict_rule: hard
+
     context_engine:
       context_keys: [league, season, venue, opponent_tier, score_state, tactical_context]
       benchmark_model: contextual
       benchmark_ref: "PPDA"
-      interpretation_notes: ["Interpret only with contextual thresholds; otherwise CONTEXT_MISSING."]
+      interpretation_notes: ["If no benchmark row, interpretation=CONTEXT_MISSING"]
+
     viz:
       default_chart: sparkline
       chart_role: trend
       unit_format: float
       plot_data_contract: {type: timeseries, fields: [minute, value]}
-      caption_template: "PPDA {value}: press yoğunluğu {interpretation} — kırılma anı {event_window}."
+      caption_template: "PPDA {value} — press yoğunluğu {interpretation}."
+
     evidence_policy:
       evidence_required: recommended
       evidence_types: [timestamp, sequence_id]
       evidence_generation: auto
+
 
   - canonical_name: FIELD_TILT
     metric_family: territory
@@ -74,482 +83,133 @@ metrics:
     unit: "percent"
     polarity: +1
     status: ACTIVE
-    version: "1.0.0"
+    version: "0.1.0"
+
     data_requirements:
       required_sources: [event]
-      required_fields: [event_type, x, y, team_id, timestamp]
-      optional_fields: []
+      required_fields: [match_id, team_id, event_type, timestamp, x, y]
+      optional_fields: [end_x, end_y]
       minimum_granularity: action
+
     modes:
-      FULL: {logic_method: "calc_field_tilt_full_v1", min_confidence: 0.75}
-      DEGRADED: {logic_method: "calc_field_tilt_proxy_v1", min_confidence: 0.55, proxy_note: "If pass end-location missing, uses pass start-location only."}
+      FULL: {logic_method: "calc_field_tilt_full_v1", min_confidence: 0.7}
+      DEGRADED: {logic_method: "calc_field_tilt_proxy_v1", min_confidence: 0.5, proxy_note: "If end_x/end_y missing, use start x only."}
+
     lineage:
       source: "canonical_event_model"
       derivation: "team_final3rd_passes / (team+opp_final3rd_passes)"
-      assumptions: ["final third x>=70"]
+      assumptions: ["final third defined by x >= 70m"]
+
     grouping:
       phase_tags: [F1, F2]
       dimension_tags: [tactical, context]
       hierarchy_level: L3
       entity_level: team
       time_grain: match
+
     aggregation:
       aggregation_levels: [team]
       rollup_method: null
       weight_field: null
       denominator: none
+
     temporal_dynamics:
       phase_splits: [0-15,15-30,30-45,45-60,60-75,75-90]
-      rolling_windows: [5,10]
-      event_windows:
-        - event: goal_scored
-          window: [-5, +10]
+      rolling_windows: [10]
+      event_windows: []
+
     falsifiability:
-      h0: "Territorial dominance is not present"
-      h1: "Territorial dominance is present"
-      supports: [FINAL_THIRD_ENTRIES, POSSESSION_SHARE]
+      h0: "Territorial dominance not present"
+      h1: "Territorial dominance present"
+      supports: [FINAL_THIRD_ENTRIES]
       contradicts: [HIGH_COUNTER_ATTACK_XT]
       min_sample: ">=1 match"
-      confidence_floor: 0.55
+      confidence_floor: 0.5
       conflict_rule: soft
+
     context_engine:
       context_keys: [league, season, venue, opponent_tier, score_state]
       benchmark_model: contextual
       benchmark_ref: "FIELD_TILT"
-      interpretation_notes: ["Use possession-adjusted variant if possession skewed."]
+      interpretation_notes: ["If possession skewed, add possession-adjusted variant later"]
+
     viz:
       default_chart: bar
       chart_role: compare
       unit_format: percent
       plot_data_contract: {type: scalar, fields: [team_value, opp_value]}
-      caption_template: "Field Tilt %{value}: yerleşik oyunda alan hakimiyeti."
+      caption_template: "Field Tilt %{value} — alan hakimiyeti."
+
     evidence_policy:
       evidence_required: none
       evidence_types: []
       evidence_generation: blocked
 
-  - canonical_name: PRESS_INTENSITY
-    metric_family: pressing
-    definition: "Press actions per minute in out-of-possession."
-    unit: "per_min"
-    polarity: +1
-    status: ACTIVE
-    version: "1.0.0"
-    data_requirements:
-      required_sources: [event]
-      required_fields: [event_type, event_subtype, team_id, timestamp]
-      optional_fields: [pressure]
-      minimum_granularity: action
-    modes:
-      FULL: {logic_method: "calc_press_intensity_full_v1", min_confidence: 0.65}
-      DEGRADED: {logic_method: "calc_press_intensity_proxy_v1", min_confidence: 0.45, proxy_note: "If pressure events missing, uses duels+challenges as proxy."}
-    lineage:
-      source: "canonical_event_model"
-      derivation: "press_actions / oop_minutes"
-      assumptions: ["oop inferred from possession sequences"]
-    grouping:
-      phase_tags: [F3, F6]
-      dimension_tags: [tactical]
-      hierarchy_level: L2
-      entity_level: team
-      time_grain: rolling_5
-    aggregation:
-      aggregation_levels: [team]
-      rollup_method: null
-      weight_field: null
-      denominator: none
-    temporal_dynamics:
-      phase_splits: [0-15,15-30,30-45,45-60,60-75,75-90]
-      rolling_windows: [5]
-      event_windows: []
-    falsifiability:
-      h0: "Pressing mechanism not active"
-      h1: "Pressing mechanism active"
-      supports: [LOW_PPDA, LOW_OPP_BUILDOUT_SPEED]
-      contradicts: [HIGH_OPP_PASS_COMPLETION_DEF3]
-      min_sample: ">=1 match"
-      confidence_floor: 0.55
-      conflict_rule: soft
-    context_engine:
-      context_keys: [league, season, venue, opponent_tier, tactical_context]
-      benchmark_model: contextual
-      benchmark_ref: "PRESS_INTENSITY"
-      interpretation_notes: []
-    viz:
-      default_chart: sparkline
-      chart_role: trend
-      unit_format: float
-      plot_data_contract: {type: timeseries, fields: [minute, value]}
-      caption_template: "Press yoğunluğu {value}: 60+ sonrası düşüş var mı?"
-    evidence_policy:
-      evidence_required: recommended
-      evidence_types: [timestamp]
-      evidence_generation: auto
-
-  - canonical_name: REGAIN_6S
-    metric_family: transition_defense
-    definition: "Probability of regaining possession within 6 seconds after loss."
-    unit: "percent"
-    polarity: +1
-    status: ACTIVE
-    version: "1.0.0"
-    data_requirements:
-      required_sources: [event]
-      required_fields: [possession_id, turnover_flag, timestamp, team_id]
-      optional_fields: []
-      minimum_granularity: possession
-    modes:
-      FULL: {logic_method: "calc_regain6s_full_v1", min_confidence: 0.7}
-      DEGRADED: {logic_method: "calc_regain6s_proxy_v1", min_confidence: 0.5, proxy_note: "If possession_id missing, approximates via time adjacency + team switch."}
-    lineage:
-      source: "canonical_event_model"
-      derivation: "regains_within_6s / losses"
-      assumptions: ["turnover definition standardized"]
-    grouping:
-      phase_tags: [F6]
-      dimension_tags: [tactical]
-      hierarchy_level: L2
-      entity_level: team
-      time_grain: event_window
-    aggregation:
-      aggregation_levels: [team]
-      rollup_method: null
-      weight_field: null
-      denominator: none
-    temporal_dynamics:
-      phase_splits: [0-15,15-30,30-45,45-60,60-75,75-90]
-      rolling_windows: [10]
-      event_windows:
-        - event: goal_conceded
-          window: [0, +10]
-    falsifiability:
-      h0: "Counterpress not effective"
-      h1: "Counterpress effective"
-      supports: [LOW_OPP_COUNTER_XT]
-      contradicts: [HIGH_TRANSITION_XG_CONCEDED]
-      min_sample: ">=20 losses"
-      confidence_floor: 0.6
-      conflict_rule: hard
-    context_engine:
-      context_keys: [league, season, venue, opponent_tier, score_state]
-      benchmark_model: contextual
-      benchmark_ref: "REGAIN_6S"
-      interpretation_notes: ["Pairs with PPDA; mismatch => phase model issue."]
-    viz:
-      default_chart: bar
-      chart_role: compare
-      unit_format: percent
-      plot_data_contract: {type: scalar, fields: [team_value, opp_value]}
-      caption_template: "6sn geri-kazanım %{value}: geçiş savunması {interpretation}."
-    evidence_policy:
-      evidence_required: recommended
-      evidence_types: [sequence_id, timestamp]
-      evidence_generation: auto
 
   - canonical_name: PROGRESSIVE_PASSES
     metric_family: progression
-    definition: "Count of progressive passes (distance-to-goal reduction threshold)."
+    definition: "Count of progressive passes."
     unit: "count"
     polarity: +1
     status: ACTIVE
-    version: "1.0.0"
+    version: "0.1.0"
+
     data_requirements:
       required_sources: [event]
-      required_fields: [event_type, pass_start_x, pass_start_y, pass_end_x, pass_end_y, player_id, team_id, timestamp]
-      optional_fields: [pressure]
+      required_fields: [match_id, team_id, player_id, event_type, timestamp, x, y, end_x, end_y]
+      optional_fields: [subtype, receiver_id]
       minimum_granularity: action
+
     modes:
-      FULL: {logic_method: "calc_progressive_passes_full_v1", min_confidence: 0.8}
-      DEGRADED: {logic_method: "calc_progressive_passes_proxy_v1", min_confidence: 0.6, proxy_note: "If end coordinates missing, uses final-third entry flags as proxy."}
+      FULL: {logic_method: "calc_progressive_passes_full_v1", min_confidence: 0.75}
+      DEGRADED: {logic_method: "calc_progressive_passes_proxy_v1", min_confidence: 0.55, proxy_note: "If end coords missing, proxy via final-third entry flags (if available)."}
+
     lineage:
       source: "canonical_event_model"
-      derivation: "count(pass where delta_goal_distance >= threshold)"
-      assumptions: ["threshold per zone; 105x68 normalization"]
+      derivation: "count(pass where delta_to_goal_distance >= threshold)"
+      assumptions: ["threshold rules defined later in canon/rules"]
+
     grouping:
       phase_tags: [F1, F2]
       dimension_tags: [technical, tactical]
       hierarchy_level: L2
       entity_level: player
       time_grain: match
+
     aggregation:
       aggregation_levels: [player, position, team]
       rollup_method: sum
       weight_field: null
       denominator: none
+
     temporal_dynamics:
       phase_splits: [0-15,15-30,30-45,45-60,60-75,75-90]
       rolling_windows: [10]
       event_windows: []
+
     falsifiability:
       h0: "Progression mechanism not present"
       h1: "Progression mechanism present"
-      supports: [FINAL_THIRD_ENTRIES, LINE_BREAKING_PASSES]
+      supports: [FINAL_THIRD_ENTRIES]
       contradicts: [LOW_XT_FROM_PASSES]
       min_sample: ">=1 match"
-      confidence_floor: 0.55
+      confidence_floor: 0.5
       conflict_rule: soft
+
     context_engine:
-      context_keys: [league, season, venue, opponent_tier, tactical_context]
+      context_keys: [league, season, venue, opponent_tier]
       benchmark_model: contextual
       benchmark_ref: "PROGRESSIVE_PASSES"
-      interpretation_notes: ["Use per90 for player comparisons."]
+      interpretation_notes: ["Use per90 for comparisons later."]
+
     viz:
       default_chart: table
       chart_role: compare
       unit_format: int
       plot_data_contract: {type: scalar, fields: [player_id, value]}
-      caption_template: "İlerici pas: {player} {value} — yapıdan ilerlemeye köprü."
+      caption_template: "İlerici pas: {player} {value}"
+
     evidence_policy:
       evidence_required: recommended
       evidence_types: [timestamp]
       evidence_generation: auto
-
-  - canonical_name: LINE_BREAKING_PASSES
-    metric_family: progression
-    definition: "Passes that break at least one defensive line."
-    unit: "count"
-    polarity: +1
-    status: ACTIVE
-    version: "1.0.0"
-    data_requirements:
-      required_sources: [event]
-      required_fields: [pass_start_x, pass_start_y, pass_end_x, pass_end_y, timestamp]
-      optional_fields: [opponent_shape_proxy]
-      minimum_granularity: action
-    modes:
-      FULL: {logic_method: "calc_line_break_full_v1", min_confidence: 0.65}
-      DEGRADED: {logic_method: "calc_line_break_proxy_v1", min_confidence: 0.45, proxy_note: "Without defensive line data, proxy uses pass into zone-14/halfspace + angle constraints."}
-    lineage:
-      source: "canonical_event_model"
-      derivation: "geometric line-break heuristic"
-      assumptions: ["no tracking => proxy only"]
-    grouping:
-      phase_tags: [F2]
-      dimension_tags: [tactical, technical]
-      hierarchy_level: L2
-      entity_level: player
-      time_grain: match
-    aggregation:
-      aggregation_levels: [player, team]
-      rollup_method: sum
-      weight_field: null
-      denominator: none
-    temporal_dynamics:
-      phase_splits: [0-15,15-30,30-45,45-60,60-75,75-90]
-      rolling_windows: [10]
-      event_windows: []
-    falsifiability:
-      h0: "Line-breaking not happening"
-      h1: "Line-breaking happening"
-      supports: [XT_FROM_PASSES]
-      contradicts: [LOW_FINAL_THIRD_ENTRIES]
-      min_sample: ">=1 match"
-      confidence_floor: 0.5
-      conflict_rule: soft
-    context_engine:
-      context_keys: [league, season, venue, opponent_tier]
-      benchmark_model: contextual
-      benchmark_ref: "LINE_BREAKING_PASSES"
-      interpretation_notes: ["Proxy; mark DEGRADED if no tracking."]
-    viz:
-      default_chart: pitch_map
-      chart_role: spatial
-      unit_format: int
-      plot_data_contract: {type: pitch_points, fields: [x_start, y_start, x_end, y_end, weight]}
-      caption_template: "Hat kıran paslar: nereden/nereye, baskı altında mı?"
-    evidence_policy:
-      evidence_required: recommended
-      evidence_types: [timestamp]
-      evidence_generation: auto
-
-  - canonical_name: XT_FROM_PASSES
-    metric_family: possession_value
-    definition: "Expected Threat added by passes."
-    unit: "xt"
-    polarity: +1
-    status: ACTIVE
-    version: "1.0.0"
-    data_requirements:
-      required_sources: [event]
-      required_fields: [pass_start_x, pass_start_y, pass_end_x, pass_end_y]
-      optional_fields: []
-      minimum_granularity: action
-    modes:
-      FULL: {logic_method: "calc_xt_pass_full_v1", min_confidence: 0.7}
-      DEGRADED: {logic_method: "calc_xt_pass_proxy_v1", min_confidence: 0.55, proxy_note: "Uses fixed xT grid; no dynamic threat without tracking."}
-    lineage:
-      source: "xt_grid_v1"
-      derivation: "xt(end) - xt(start)"
-      assumptions: ["grid 16x12 baseline"]
-    grouping:
-      phase_tags: [F1, F2]
-      dimension_tags: [tactical]
-      hierarchy_level: L3
-      entity_level: player
-      time_grain: match
-    aggregation:
-      aggregation_levels: [player, team]
-      rollup_method: sum
-      weight_field: null
-      denominator: none
-    temporal_dynamics:
-      phase_splits: [0-15,15-30,30-45,45-60,60-75,75-90]
-      rolling_windows: [10]
-      event_windows: []
-    falsifiability:
-      h0: "Threat creation via passing not present"
-      h1: "Threat creation via passing present"
-      supports: [LINE_BREAKING_PASSES, FINAL_THIRD_ENTRIES]
-      contradicts: [LOW_XG_CHAIN]
-      min_sample: ">=1 match"
-      confidence_floor: 0.55
-      conflict_rule: soft
-    context_engine:
-      context_keys: [league, season, opponent_tier, score_state]
-      benchmark_model: contextual
-      benchmark_ref: "XT_FROM_PASSES"
-      interpretation_notes: []
-    viz:
-      default_chart: waterfall
-      chart_role: causal_hint
-      unit_format: float
-      plot_data_contract: {type: waterfall, fields: [component, value]}
-      caption_template: "xT üretimi: hangi aksiyon aileleri taşıdı?"
-    evidence_policy:
-      evidence_required: recommended
-      evidence_types: [timestamp, sequence_id]
-      evidence_generation: auto
-
-  - canonical_name: OBV
-    metric_family: possession_value
-    definition: "On-Ball Value added by actions (baseline)."
-    unit: "obv"
-    polarity: +1
-    status: ACTIVE
-    version: "0.9.0"
-    data_requirements:
-      required_sources: [event]
-      required_fields: [event_type, x, y, timestamp, player_id]
-      optional_fields: []
-      minimum_granularity: action
-    modes:
-      FULL: {logic_method: "calc_obv_baseline_full_v1", min_confidence: 0.6}
-      DEGRADED: {logic_method: "calc_obv_proxy_v1", min_confidence: 0.45, proxy_note: "If action taxonomy incomplete, approximates via xT + shot value."}
-    lineage:
-      source: "obv_baseline_model"
-      derivation: "value_added(action)"
-      assumptions: ["baseline model; upgrade later"]
-    grouping:
-      phase_tags: [F1, F2, F6]
-      dimension_tags: [tactical]
-      hierarchy_level: L3
-      entity_level: player
-      time_grain: match
-    aggregation:
-      aggregation_levels: [player, team]
-      rollup_method: sum
-      weight_field: null
-      denominator: none
-    temporal_dynamics:
-      phase_splits: [0-15,15-30,30-45,45-60,60-75,75-90]
-      rolling_windows: [10]
-      event_windows: []
-    falsifiability:
-      h0: "Value creation not present"
-      h1: "Value creation present"
-      supports: [XT_FROM_PASSES, XG_CHAIN]
-      contradicts: [LOW_SHOT_QUALITY_XG]
-      min_sample: ">=1 match"
-      confidence_floor: 0.5
-      conflict_rule: soft
-    context_engine:
-      context_keys: [league, season, opponent_tier]
-      benchmark_model: contextual
-      benchmark_ref: "OBV"
-      interpretation_notes: ["OBV baseline; label model_version in lineage."]
-    viz:
-      default_chart: radar
-      chart_role: compare
-      unit_format: float
-      plot_data_contract: {type: scalar, fields: [player_id, value]}
-      caption_template: "OBV: topu değer üretene çeviren oyuncular."
-    evidence_policy:
-      evidence_required: recommended
-      evidence_types: [timestamp]
-      evidence_generation: auto
-
-  - canonical_name: XG
-    metric_family: expected_goals
-    definition: "Expected goals from shots."
-    unit: "xg"
-    polarity: +1
-    status: ACTIVE
-    version: "1.0.0"
-    data_requirements:
-      required_sources: [event]
-      required_fields: [shot_x, shot_y, shot_body_part, shot_type, timestamp, player_id]
-      optional_fields: [pressure, assist_type]
-      minimum_granularity: action
-    modes:
-      FULL: {logic_method: "calc_xg_model_full_v1", min_confidence: 0.7}
-      DEGRADED: {logic_method: "calc_xg_proxy_v1", min_confidence: 0.5, proxy_note: "If shot context missing, uses distance+angle logistic proxy."}
-    lineage:
-      source: "xg_model_v1"
-      derivation: "P(goal|features)"
-      assumptions: ["model calibrated on historical dataset"]
-    grouping:
-      phase_tags: [F4]
-      dimension_tags: [tactical]
-      hierarchy_level: L4
-      entity_level: player
-      time_grain: match
-    aggregation:
-      aggregation_levels: [player, team]
-      rollup_method: sum
-      weight_field: null
-      denominator: none
-    temporal_dynamics:
-      phase_splits: [0-15,15-30,30-45,45-60,60-75,75-90]
-      rolling_windows: [10]
-      event_windows:
-        - event: goal_scored
-          window: [-5, +10]
-    falsifiability:
-      h0: "Chance quality not high"
-      h1: "Chance quality high"
-      supports: [BIG_CHANCE_COUNT]
-      contradicts: [LOW_SHOTS_ON_TARGET]
-      min_sample: ">=5 shots"
-      confidence_floor: 0.55
-      conflict_rule: soft
-    context_engine:
-      context_keys: [league, season, venue, opponent_tier, score_state]
-      benchmark_model: contextual
-      benchmark_ref: "XG"
-      interpretation_notes: ["Separate open-play vs set-piece xG via tags."]
-    viz:
-      default_chart: pitch_map
-      chart_role: spatial
-      unit_format: float
-      plot_data_contract: {type: pitch_points, fields: [shot_x, shot_y, value]}
-      caption_template: "xG haritası: şut kalitesi nerede birikti?"
-    evidence_policy:
-      evidence_required: required
-      evidence_types: [timestamp, clip]
-      evidence_generation: manual
-
-  - canonical_name: SET_PIECE_THREAT
-    metric_family: set_pieces
-    definition: "Threat generated from set pieces (xG from set pieces + dangerous second balls)."
-    unit: "threat"
-    polarity: +1
-    status: ACTIVE
-    version: "0.9.0"
-    data_requirements:
-      required_sources: [event]
-      required_fields: [restart_type, shot_xg, duel_outcome, timestamp]
-      optional_fields: []
-      minimum_granularity: sequence
-    modes:
-      FULL: {logic_method: "calc_set_piece_threat_full_v1", min_confidence: 0.6}
-      DEGRADED: {logic_method: "calc_set_piece_threat_proxy_v1", min_confidence: 0.45, proxy_note: "If resta
