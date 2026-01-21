@@ -1,1 +1,1 @@
-# metrics_impl package
+# HP Engine metric implementations package.
