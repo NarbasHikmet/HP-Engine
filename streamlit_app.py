@@ -50,7 +50,7 @@ with st.sidebar:
     run = st.button("HÜKMÜ MÜHÜRLE")
 
 # ----------------------------
-# QUICK PREVIEW (optional, helps confirm picker works)
+# QUICK PREVIEW (optional, confirms picker works)
 # ----------------------------
 if files:
     st.caption(f"Selected files: {len(files)}")
@@ -83,19 +83,6 @@ if run:
             st.info("ACWR: 1.12 (Safe)")
 
 # ----------------------------
-# METRICS ENCYCLOPEDIA (independent from file upload)
-# ----------------------------
-if show_metrics:
-    st.divider()
-    try:
-        from engine.metrics.streamlit_panel import render_metrics_explorer
-        render_metrics_explorer()
-    except Exception as e:
-        st.error("Metrics modülü yüklenemedi. engine/__init__.py ve engine/metrics/__init__.py kontrol et.")
-        st.code(str(e))
-if show_metrics:
-    st.divider()
-   # ----------------------------
 # METRICS ENCYCLOPEDIA (independent from file upload)
 # ----------------------------
 if show_metrics:
