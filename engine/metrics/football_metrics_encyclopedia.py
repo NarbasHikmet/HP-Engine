@@ -147,15 +147,16 @@ register(MetricDefinition(
     aliases=["expected_assists"],
     category=MetricCategory.EXPECTED,
     subcategory="passing",
-    description="Bir pasın asist olma olasılığı.",
-    formula="xA = xG(şut) pas bazında atanır",
+    description="Bir pasın asist olma olasılığı (genellikle şutun xG değeri pasöre kredilendirilir).",
+    formula="xA(pass) = xG(shot) where shot is the immediate outcome of the pass",
     unit="probability",
     range=(0.0, 1.0),
     data_requirements={"minimum": ["pass", "shot"]},
-    derivation_steps=["Şut xG'sini pasörle ilişkilendir"],
+    derivation_steps=["Pas sonrası gerçekleşen şutun xG değerini pasöre ata"],
     dependencies=["xG"],
     supports=["chance_creation"],
-    use_cases=["Oyun kurucu değerlendirmesi"],
+    use_cases=["Oyun kurucu değerlendirmesi", "Yaratıcılık ölçümü"],
+    limitations=["Şut gerçekleşmeyen iyi pasları kapsamaz", "Model xG tanımına bağımlıdır"],
 ))
 
 register(MetricDefinition(
