@@ -39,9 +39,11 @@ jobs:
           print("total_metrics:", c.get("total_metrics"))
           print("ready:", c.get("ready"))
           print("blocked:", c.get("blocked"))
+          if (c.get("total_metrics") or 0) == 0:
+              raise SystemExit("No metrics found under canon/metrics")
           PY
 
-- name: Upload artifacts
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: hp-metric-registry
