@@ -9,7 +9,7 @@ from .football_metrics_encyclopedia import (
     get_metric as _get_metric,
     get_summary as _get_summary,
     search_metrics as _search_metrics,
-)
+) 
 
 __all__ = [
     "METRICS",
