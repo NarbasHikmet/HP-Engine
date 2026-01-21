@@ -2,49 +2,56 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-from .football_metrics_encyclopedia import (
-    METRICS,
-    MetricCategory,
-    MetricDefinition,
-    get_metric as _get_metric,
-    get_summary as _get_summary,
-    search_metrics as _search_metrics,
-) 
+from .registry_loader import load_registry, get_metric_spec
 
-__all__ = [
-    "METRICS",
-    "MetricCategory",
-    "MetricDefinition",
-    "get_metric",
-    "search_metrics",
-    "get_summary",
-    "list_metric_ids",
-    "get_by_category",
-]
 
-def get_metric(metric_id: str) -> Optional[MetricDefinition]:
-    return _get_metric(metric_id)
-
-def search_metrics(query: str) -> List[MetricDefinition]:
-    return _search_metrics(query)
-
-def get_summary() -> Dict[str, Any]:
-    return _get_summary()
-
-def list_metric_ids() -> List[str]:
-    return sorted(METRICS.keys())
-
-def get_by_category(category: MetricCategory) -> List[MetricDefinition]:
-    return [m for m in METRICS.values() if m.category == category]
-def search_metrics(query: str) -> List[MetricDefinition]:
-    q = (query or "").lower().strip()
-    if not q:
-        return []
+def list_metric_ids(registry_path: str = "engine/metrics/registry.json", status: Optional[str] = None) -> List[str]:
+    reg = load_registry(registry_path).registry
+    mids = sorted(list((reg.get("metrics") or {}).keys()))
+    if status is None:
+        return mids
     out = []
-    for m in METRICS.values():
-        if q in m.metric_id.lower() or q in m.full_name.lower():
-            out.append(m)
-            continue
-        if any(q in a.lower() for a in (m.aliases or [])):
-            out.append(m)
+    for mid in mids:
+        spec = reg["metrics"][mid]
+        if spec.get("status") == status:
+            out.append(mid)
     return out
+
+
+def get_metric(metric_id: str, registry_path: str = "engine/metrics/registry.json") -> Dict[str, Any]:
+    reg = load_registry(registry_path).registry
+    spec = get_metric_spec(metric_id, reg)
+    if spec is None:
+        return {
+            "found": False,
+            "metric_id": metric_id,
+            "status": "UNKNOWN",
+            "reason": "metric_id not in registry"
+        }
+    return {
+        "found": True,
+        "metric_id": metric_id,
+        "status": spec.get("status"),
+        "spec": spec
+    }
+
+
+def search_metrics(query: str, registry_path: str = "engine/metrics/registry.json") -> List[Dict[str, Any]]:
+    """
+    Deterministic substring search over:
+    - metric_id
+    - source.canon_category/subcategory (if present)
+    - aliases if later added (not guessed)
+    """
+    q = (query or "").strip().lower()
+    reg = load_registry(registry_path).registry
+    results: List[Dict[str, Any]] = []
+    for mid, spec in (reg.get("metrics") or {}).items():
+        hay = [
+            mid.lower(),
+            str((spec.get("source") or {}).get("canon_category") or "").lower(),
+            str((spec.get("source") or {}).get("canon_subcategory") or "").lower(),
+        ]
+        if any(q in h for h in hay if h):
+            results.append({"metric_id": mid, "status": spec.get("status"), "spec": spec})
+    return results
