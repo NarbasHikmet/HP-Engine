@@ -26,7 +26,26 @@ with st.sidebar:
     show_metrics = st.toggle("📚 Metrics Encyclopedia", value=False)
 
     st.divider()
-    files = st.file_uploader("Veri/Belge Yükle", accept_multiple_files=True)
+    ALLOWED_TYPES = [
+    # text / structured
+    "txt", "md", "log", "csv", "json", "xml", "html",
+
+    # office
+    "xlsx", "xls", "docx",
+
+    # pdf
+    "pdf",
+
+    # media
+    "mp4", "mov", "mkv", "webm",
+    "mp3", "wav", "m4a", "aac", "ogg",
+]
+
+files = st.file_uploader(
+    "Veri/Belge Yükle",
+    type=ALLOWED_TYPES,
+    accept_multiple_files=True
+)
 
 st.divider()
 show_metrics = st.toggle("📚 Metrics Encyclopedia", value=False)
