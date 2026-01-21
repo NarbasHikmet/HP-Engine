@@ -93,10 +93,12 @@ if show_metrics:
     except Exception as e:
         st.error("Metrics modülü yüklenemedi. engine/__init__.py ve engine/metrics/__init__.py kontrol et.")
         st.code(str(e))
-try:
-    from engine.metrics.api import get_summary
-    st.success("metrics import OK")
-    st.json(get_summary())
-except Exception as e:
-    st.error("metrics import FAILED")
-    st.code(str(e))
+if show_metrics:
+    st.divider()
+    try:
+        from engine.metrics.api import get_summary
+        st.success("metrics import OK")
+        st.json(get_summary())
+    except Exception as e:
+        st.error("metrics import FAILED")
+        st.code(str(e))
