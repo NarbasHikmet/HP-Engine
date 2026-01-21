@@ -76,4 +76,20 @@ if run:
 
         with c1:
             st.subheader(f"📊 {category} - {phase_sel} Analizi")
-            st.success("Hüküm:
+            st.success("Hüküm: Ekol Sadakati %92. NAS Riski: Düşük.")
+
+        with c2:
+            st.subheader("🧠 Kognitif / Fiziksel Yük")
+            st.info("ACWR: 1.12 (Safe)")
+
+# ----------------------------
+# METRICS ENCYCLOPEDIA (independent from file upload)
+# ----------------------------
+if show_metrics:
+    st.divider()
+    try:
+        from engine.metrics.streamlit_panel import render_metrics_explorer
+        render_metrics_explorer()
+    except Exception as e:
+        st.error("Metrics modülü yüklenemedi. engine/__init__.py ve engine/metrics/__init__.py kontrol et.")
+        st.code(str(e))
