@@ -1,64 +1,46 @@
-canonical_name: PPDA
-metric_family: tactical.press
-description: "Passes allowed per defensive action in opponent build-up zones."
-unit: "ratio"
-polarity: "lower_is_better_for_pressing"
-logic_method: "calc_ppda_v1"
-data_requirements:
-  required_columns_canonical:
-    - match_id
-    - team_id
-    - event_type
-    - timestamp_s
-    - x
-    - y
-  optional_columns_canonical:
-    - period
-    - player_id
-mode:
-  default: "FULL"
-  degraded_rules:
-    - if_missing_event_types: ["interception","tackle","foul_won","ball_recovery"]
-      then: "DEGRADED"
-      reason: "Defensive action taxonomy incomplete; PPDA will be underestimated."
-aggregation:
-  entity_level: "team"
-  rollups: ["team"]
-  rollup_method: "none"
-temporal:
-  time_grain: "match_and_bins"
-  bins_minutes: [0,15,30,45,60,75,90,120]
-  rolling_window_minutes: null
+metric_name: PPDA
+category: tactical
+
+core:
+  description: "Opponent passes allowed per defensive action"
+  unit: ratio
+  range: [0, 30]
+
+relationships:
+  influences:
+    - metric: Field_Tilt
+      type: causal
+      sign: negative
+      lag_window: "0-10min"
+
 falsifiability:
-  H0: "Team cannot press effectively (allows many passes before defensive actions)."
-  H1: "Team presses effectively."
+  H0: "Team cannot apply effective pressing"
   supports:
-    - metric: "DefActions_In_OppBuild"
-      condition: "low"
-      note: "If def actions are scarce while opponent completes many passes, weak press is supported."
+    - metric: Low_Ball_Recoveries
+      condition: low
   contradicts:
-    - metric: "High_Regain_6s"
-      condition: "high"
-      note: "Frequent quick regains contradict weak pressing interpretation."
-  min_sample:
-    opponent_passes_in_zone: 40
+    - metric: High_Counter_Attack_Success
+      condition: high
+  min_sample_size: 50
   confidence_floor: 0.65
+
 benchmarks:
   - context:
-      league: "UNKNOWN"
-      opponent_tier: "UNKNOWN"
-      venue: "UNKNOWN"
+      league: generic
+      opponent_tier: all
     thresholds:
-      elite: "<= 7.0"
-      good: "7.0-10.0"
-      average: "10.0-13.0"
-      poor: "> 13.0"
-    source: "placeholder_until_benchmark_db"
-    sample_size_matches: null
+      elite: "<7"
+      good: "7-10"
+      average: "10-14"
+      poor: ">14"
+
+temporal:
+  time_grain: match
+
+aggregation:
+  entity_level: team
+  aggregation_levels: [team]
+
 computation:
   dependency_metrics: []
-  min_data_quality: 0.75
-  cache_strategy: "match"
-  compute_cost: "low"
-  validation_rules:
-    - "value >= 0"
+  min_data_quality: 0.8
