@@ -1,0 +1,14 @@
+graph_version: "1.0"
+last_updated: "2026-01-22"
+edges:
+  - from: "PPDA"
+    to: "FIELD_TILT"
+    type: "causal"
+    sign: "negative"
+    lag_window: "0-10min"
+    strength: 0.55
+    evidence: "More effective pressing (lower PPDA) tends to increase territorial control over time."
+contradiction_rules:
+  - metrics: ["PPDA", "High_Regain_6s"]
+    rule: "If PPDA indicates weak pressing but quick regains are high, flag conflict."
+    action: "FLAG_CONFLICT"
