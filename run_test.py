@@ -1,7 +1,5 @@
-from engine.registry_gate import RegistryGate
-from engine.metric_engine import MetricEngine
+from engine.master_orchestrator import MasterOrchestrator
 
-# Fake SportsBase-like events
 events = [
     {"team": "opponent", "type": "pass", "x": 40},
     {"team": "opponent", "type": "pass", "x": 50},
@@ -11,14 +9,7 @@ events = [
     {"team": "opponent", "type": "pass", "x": 80},
 ]
 
-# Registry load
-gate = RegistryGate()
-metrics = gate.load_folder("canon/registry/tactical")
+orch = MasterOrchestrator(registry_folder="canon/registry/tactical")
+report = orch.run(events, context={"league": "generic"})
 
-engine = MetricEngine()
-
-ppda = engine.compute_ppda(events)
-field_tilt = engine.compute_field_tilt(events)
-
-print("PPDA:", ppda)
-print("Field Tilt:", field_tilt)
+print(report)
