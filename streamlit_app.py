@@ -1,100 +1,62 @@
 import streamlit as st
-import plotly.graph_objects as go
+import pandas as pd
 
-from engine.hp_engine_reader import HPReader
-from engine.hp_engine_logic import HPLogic
-from aurelia.aurelia_core import AureliaCore
+from engine.master_orchestrator import MasterOrchestrator
 
-st.set_page_config(page_title="AURELIA v2.5", layout="wide")
-st.title("🏛️ HP Engine: Otonom Zeka Ekosistemi")
+st.set_page_config(page_title="HP Engine v3", layout="wide")
 
-ALLOWED_TYPES = [
-    # text / structured
-    "txt", "md", "log", "csv", "json", "xml", "html",
-    # office
-    "xlsx", "xls", "docx",
-    # pdf
-    "pdf",
-    # media
-    "mp4", "mov", "mkv", "webm",
-    "mp3", "wav", "m4a", "aac", "ogg",
-]
+st.title("HP Engine v3 — Contract-First Orchestrator")
 
-# ----------------------------
-# SIDEBAR
-# ----------------------------
-with st.sidebar:
-    st.header("SAPER VEDERE")
+st.sidebar.header("Input")
+uploaded = st.sidebar.file_uploader("SportsBase CSV yükle", type=["csv"])
 
-    phase_sel = st.selectbox(
-        "HP 6-Faz Modeli",
-        ["Build-up", "Progression", "Incision", "Finishing", "Transitions"]
-    )
+st.sidebar.header("Run Mode")
+mode = st.sidebar.selectbox("Mode", ["pre_match", "post_match", "scouting"], index=0)
 
-    category = st.selectbox(
-        "Analiz Modülü",
-        ["Pre-Match", "Post-Match", "Individual (NAS)", "Team Tactical", "Squad Engineering"]
-    )
+run_btn = st.sidebar.button("RUN MATCH", type="primary")
 
-    st.divider()
-    files = st.file_uploader(
-        "Veri/Belge Yükle",
-        type=ALLOWED_TYPES,
-        accept_multiple_files=True
-    )
+if "last_output" not in st.session_state:
+    st.session_state.last_output = None
 
-    st.divider()
-    show_metrics = st.toggle("📚 Metrics Encyclopedia", value=False)
-
-    st.divider()
-    run = st.button("HÜKMÜ MÜHÜRLE")
-
-# ----------------------------
-# QUICK PREVIEW (optional, confirms picker works)
-# ----------------------------
-if files:
-    st.caption(f"Selected files: {len(files)}")
-    for uf in files:
-        ext = uf.name.split(".")[-1].lower() if "." in uf.name else ""
-        if ext in ("mp3", "wav", "m4a", "aac", "ogg"):
-            st.audio(uf.getvalue())
-        elif ext in ("mp4", "mov", "mkv", "webm"):
-            st.video(uf.getvalue())
-
-# ----------------------------
-# MAIN APP: ANALYSIS FLOW
-# ----------------------------
-if run:
-    if not files:
-        st.warning("Dosya yüklemeden analiz çalıştırılamaz. (Metrics Explorer dosyasız çalışır.)")
+if run_btn:
+    if uploaded is None:
+        st.error("CSV yüklemeden RUN MATCH çalışmaz.")
     else:
-        store = HPReader().ingest(files)
-        core = AureliaCore()
-        logic = HPLogic()
+        try:
+            df = pd.read_csv(uploaded)
 
-        c1, c2 = st.columns([1.618, 1])
+            orch = MasterOrchestrator(
+                provider_name="SportsBase",
+                canon_dir="canon",
+            )
 
-        with c1:
-            st.subheader(f"📊 {category} - {phase_sel} Analizi")
-            st.success("Hüküm: Ekol Sadakati %92. NAS Riski: Düşük.")
+            output = orch.run(df, mode=mode)
 
-        with c2:
-            st.subheader("🧠 Kognitif / Fiziksel Yük")
-            st.info("ACWR: 1.12 (Safe)")
+            st.session_state.last_output = output
+            st.success("Pipeline completed.")
+        except Exception as e:
+            st.exception(e)
 
-# ----------------------------
-# METRICS ENCYCLOPEDIA (independent from file upload)
-# ----------------------------
-if show_metrics:
-    st.divider()
-    try:
-        from engine.metrics.api import get_summary
-        st.success("metrics import OK")
-        st.json(get_summary())
+out = st.session_state.last_output
 
-        from engine.metrics.streamlit_panel import render_metrics_explorer
-        render_metrics_explorer()
+if out:
+    col1, col2 = st.columns([1, 1])
 
-    except Exception as e:
-        st.error("metrics import FAILED (dosya yolu / init / klasör yapısı)")
-        st.code(str(e))
+    with col1:
+        st.subheader("Validation Report (SOT Gate)")
+        st.json(out.get("validation_report", {}))
+
+        st.subheader("Claims (Popper Gate Output)")
+        claims = out.get("claims", [])
+        st.write(f"Claims: {len(claims)}")
+        st.json(claims)
+
+    with col2:
+        st.subheader("Features (Metric Engine Output)")
+        st.json(out.get("features", {}))
+
+        st.subheader("Plot Specs (UI renders; engine does NOT draw)")
+        st.json(out.get("plotspecs", []))
+
+    st.subheader("Transformed Data Preview")
+    st.dataframe(out.get("data", pd.DataFrame()).head(50))
