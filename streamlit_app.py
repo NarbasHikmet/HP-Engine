@@ -3,60 +3,57 @@ import pandas as pd
 
 from engine.master_orchestrator import MasterOrchestrator
 
-st.set_page_config(page_title="HP Engine v3", layout="wide")
 
-st.title("HP Engine v3 — Contract-First Orchestrator")
+st.set_page_config(page_title="HP-Engine v3", layout="wide")
 
-st.sidebar.header("Input")
-uploaded = st.sidebar.file_uploader("SportsBase CSV yükle", type=["csv"])
+st.title("HP-Engine v3 — Contract-First Pipeline")
+st.caption("Raw → ProviderMap → SOT → Registry → Popper Gate → PlotSpec → Narrative")
 
-st.sidebar.header("Run Mode")
-mode = st.sidebar.selectbox("Mode", ["pre_match", "post_match", "scouting"], index=0)
+with st.sidebar:
+    st.subheader("Input")
+    uploaded = st.file_uploader("Upload SportsBase (or similar) CSV", type=["csv"])
+    phase = st.selectbox("Registry phase", ["tactical", "technical", "physical", "psychological"], index=0)
 
-run_btn = st.sidebar.button("RUN MATCH", type="primary")
+    st.subheader("Context (optional)")
+    league = st.text_input("League", value="generic")
+    season = st.text_input("Season", value="")
+    opponent_tier = st.selectbox("Opponent tier", ["all", "top4", "mid", "bottom6"], index=0)
+    venue = st.selectbox("Venue", ["home", "away", "neutral"], index=0)
 
-if "last_output" not in st.session_state:
-    st.session_state.last_output = None
+    run_btn = st.button("Run match", type="primary", use_container_width=True)
 
-if run_btn:
-    if uploaded is None:
-        st.error("CSV yüklemeden RUN MATCH çalışmaz.")
-    else:
-        try:
-            df = pd.read_csv(uploaded)
+if uploaded is None:
+    st.info("Upload a CSV to start.")
+    st.stop()
 
-            orch = MasterOrchestrator(
-                provider_name="SportsBase",
-                canon_dir="canon",
-            )
+df = pd.read_csv(uploaded)
 
-            output = orch.run(df, mode=mode)
+st.write("### Raw input preview")
+st.dataframe(df.head(25), use_container_width=True)
 
-            st.session_state.last_output = output
-            st.success("Pipeline completed.")
-        except Exception as e:
-            st.exception(e)
+if not run_btn:
+    st.stop()
 
-out = st.session_state.last_output
+ctx = {"league": league, "season": season, "opponent_tier": opponent_tier, "venue": venue}
 
-if out:
-    col1, col2 = st.columns([1, 1])
+orch = MasterOrchestrator(registry_root="canon/registry", provider="sportsbase")
+result = orch.run(df, phase=phase, context=ctx)
 
-    with col1:
-        st.subheader("Validation Report (SOT Gate)")
-        st.json(out.get("validation_report", {}))
+col1, col2 = st.columns([1, 1])
 
-        st.subheader("Claims (Popper Gate Output)")
-        claims = out.get("claims", [])
-        st.write(f"Claims: {len(claims)}")
-        st.json(claims)
+with col1:
+    st.write("## SOT Validation Report")
+    st.json(result.validation_report)
 
-    with col2:
-        st.subheader("Features (Metric Engine Output)")
-        st.json(out.get("features", {}))
+    st.write("## Narrative (v1)")
+    st.code(result.narrative)
 
-        st.subheader("Plot Specs (UI renders; engine does NOT draw)")
-        st.json(out.get("plotspecs", []))
+with col2:
+    st.write("## Claims")
+    st.json(result.claims)
 
-    st.subheader("Transformed Data Preview")
-    st.dataframe(out.get("data", pd.DataFrame()).head(50))
+    st.write("## PlotSpecs")
+    st.json(result.plotspecs)
+
+st.write("## Canonical events preview (post mapping)")
+st.dataframe(result.canonical_events_preview, use_container_width=True)
