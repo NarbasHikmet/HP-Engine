@@ -1,61 +1,44 @@
-canonical_name: FIELD_TILT
-metric_family: tactical.territory
-description: "Share of final-third passes: team_final_third_passes / (team + opponent)."
-unit: "share_0_1"
-polarity: "higher_is_better_for_territory"
-logic_method: "calc_field_tilt_v1"
-data_requirements:
-  required_columns_canonical:
-    - match_id
-    - team_id
-    - event_type
-    - timestamp_s
-    - x
-    - y
-  optional_columns_canonical:
-    - x_end
-    - y_end
-    - period
-mode:
-  default: "FULL"
-aggregation:
-  entity_level: "team"
-  rollups: ["team"]
-  rollup_method: "none"
-temporal:
-  time_grain: "match_and_bins"
-  bins_minutes: [0,15,30,45,60,75,90,120]
-  rolling_window_minutes: null
+metric_name: Field_Tilt
+category: tactical
+
+core:
+  description: "Share of passes in opponent final third"
+  unit: percentage
+  range: [0, 100]
+
+relationships:
+  influenced_by:
+    - metric: PPDA
+      type: causal
+      sign: negative
+
 falsifiability:
-  H0: "Team does not consistently occupy opponent final third."
-  H1: "Team sustains territorial control."
+  H0: "Team does not dominate territory"
   supports:
-    - metric: "Entries_Final_Third"
-      condition: "low"
-      note: "Low entries align with low field tilt."
+    - metric: High_Final_Third_Passes
+      condition: high
   contradicts:
-    - metric: "High_xT_Flow"
-      condition: "high"
-      note: "High threat creation can contradict low field tilt (direct/transition team)."
-  min_sample:
-    total_final_third_passes: 30
-  confidence_floor: 0.60
+    - metric: Low_PPDA
+      condition: low
+  min_sample_size: 40
+  confidence_floor: 0.6
+
 benchmarks:
   - context:
-      league: "UNKNOWN"
-      opponent_tier: "UNKNOWN"
-      venue: "UNKNOWN"
+      league: generic
     thresholds:
-      elite: ">= 0.60"
-      good: "0.52-0.60"
-      average: "0.45-0.52"
-      poor: "< 0.45"
-    source: "placeholder_until_benchmark_db"
-    sample_size_matches: null
+      elite: ">60"
+      good: "50-60"
+      average: "40-50"
+      poor: "<40"
+
+temporal:
+  time_grain: match
+
+aggregation:
+  entity_level: team
+  aggregation_levels: [team]
+
 computation:
   dependency_metrics: []
-  min_data_quality: 0.70
-  cache_strategy: "match"
-  compute_cost: "low"
-  validation_rules:
-    - "0 <= value <= 1"
+  min_data_quality: 0.8
