@@ -5,44 +5,13 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
-import yaml
 
 from .metric_engine import MetricEngine
 from .popper_gate import PopperGate
 from .plotspec_factory import PlotSpecFactory
+from .registry_gate import RegistryGate
 from .sot_validator import SOTValidator
 from .provider.sportsbase import to_canonical_events
-
-
-def _slug(metric_name: str) -> str:
-    """Normalize metric names to registry keys (e.g., 'Field_Tilt' -> 'field_tilt')."""
-    return (
-        metric_name.strip()
-        .lower()
-        .replace(" ", "_")
-        .replace("-", "_")
-        .replace("__", "_")
-    )
-
-
-def _load_registry_dir(registry_dir: Path) -> Dict[str, Dict[str, Any]]:
-    """Load YAML metric definitions from a directory into {key: meta}."""
-    if not registry_dir.exists():
-        raise FileNotFoundError(f"Registry directory not found: {registry_dir}")
-
-    metrics: Dict[str, Dict[str, Any]] = {}
-    for p in sorted(registry_dir.glob("*.yaml")):
-        with p.open("r", encoding="utf-8") as f:
-            d = yaml.safe_load(f) or {}
-        mname = d.get("metric_name") or p.stem
-        key = _slug(mname)
-        d["_file"] = str(p)
-        d["_key"] = key
-        metrics[key] = d
-
-    if not metrics:
-        raise ValueError(f"No YAML files found in registry directory: {registry_dir}")
-    return metrics
 
 
 def _canonical_df_to_events(canonical_df: pd.DataFrame) -> List[Dict[str, Any]]:
@@ -55,7 +24,6 @@ def _canonical_df_to_events(canonical_df: pd.DataFrame) -> List[Dict[str, Any]]:
     if canonical_df.empty:
         return []
 
-    # Choose "team" as the most frequent team_id in this file.
     team_id_mode = canonical_df["team_id"].mode().iloc[0] if "team_id" in canonical_df.columns else None
 
     def role(tid):
@@ -81,6 +49,7 @@ def _canonical_df_to_events(canonical_df: pd.DataFrame) -> List[Dict[str, Any]]:
 @dataclass
 class EngineResult:
     validation_report: Dict[str, Any]
+    registry_report: Dict[str, Any]
     registry_used: Dict[str, Any]
     features: Dict[str, Any]
     claims: List[Dict[str, Any]]
@@ -94,11 +63,12 @@ class MasterOrchestrator:
     HP-Engine v3 pipeline (minimum working backbone).
 
     Run order (hard rule):
-      Raw -> ProviderMap -> SOT -> RegistryCompute -> PopperGate -> PlotSpec -> Narrative
+      Raw -> ProviderMap -> SOT -> RegistryGate -> MetricCompute -> PopperGate -> PlotSpec -> Narrative
 
     Principles:
       - No silent data loss.
       - Any missing capability is explicitly flagged (BLOCKED / NEEDS_EVIDENCE / CONFLICT).
+      - Registry must be contract-checked before computation.
     """
 
     def __init__(
@@ -110,6 +80,7 @@ class MasterOrchestrator:
         self.provider = provider
 
         self.sot_gate = SOTValidator(provider_contract=provider)
+        self.registry_gate = RegistryGate()
         self.metric_engine = MetricEngine()
         self.popper_gate = PopperGate()
         self.plotspec_factory = PlotSpecFactory()
@@ -130,42 +101,52 @@ class MasterOrchestrator:
         val_report, canonical_df = self.sot_gate.validate(canonical_df)
         val_report["provider_mapping_used"] = mapped.mapping_used
 
-        # 3) Load registry definitions
+        # 3) RegistryGate (contract-first)
         registry_dir = self.registry_root / phase
-        registry = _load_registry_dir(registry_dir)
+        registry, registry_report = self.registry_gate.load_registry_dir(registry_dir)
 
         # 4) Compute metrics implemented in MetricEngine
         events = _canonical_df_to_events(canonical_df)
 
         features: Dict[str, Any] = {}
-        for key, meta in registry.items():
-            compute_fn = getattr(self.metric_engine, f"compute_{key}", None)
+        for metric_key, meta in registry.items():
+            compute_fn = getattr(self.metric_engine, f"compute_{metric_key}", None)
+
             if callable(compute_fn):
                 try:
-                    features[key] = compute_fn(events, team="team")
+                    features[metric_key] = compute_fn(events, team="team")
                 except Exception as e:
-                    features[key] = {"status": "ERROR", "error": str(e), "metric_name": meta.get("metric_name")}
+                    features[metric_key] = {
+                        "status": "ERROR",
+                        "error": str(e),
+                        "metric_name": meta.get("metric_name", metric_key.upper()),
+                        "_key": metric_key,
+                        "_file": meta.get("_file"),
+                    }
             else:
-                features[key] = {
+                features[metric_key] = {
                     "status": "BLOCKED",
                     "reason": "NOT_IMPLEMENTED",
-                    "metric_name": meta.get("metric_name"),
-                    "expected_function": f"compute_{key}",
+                    "metric_name": meta.get("metric_name", metric_key.upper()),
+                    "expected_function": f"compute_{metric_key}",
+                    "_key": metric_key,
+                    "_file": meta.get("_file"),
                 }
 
-        # 5) Popper gate
+        # 5) Popper gate (falsifiability & contradictions)
         claims = self.popper_gate.verify(features=features, registry=registry)
 
-        # 6) Plot specs
+        # 6) Plot specs (no heavy drawing here)
         plotspecs = self.plotspec_factory.generate(claims=claims)
 
-        # 7) Narrative (v1)
-        narrative = self._narrative_v1(claims=claims)
+        # 7) Narrative (v1: explicit statuses)
+        narrative = self._narrative_v1(claims=claims, registry_report=registry_report, val_report=val_report)
 
         preview = canonical_df.head(25).copy()
 
         return EngineResult(
             validation_report=val_report,
+            registry_report=registry_report,
             registry_used={"phase": phase, "dir": str(registry_dir), "metrics": list(registry.keys())},
             features=features,
             claims=claims,
@@ -175,17 +156,25 @@ class MasterOrchestrator:
         )
 
     @staticmethod
-    def _narrative_v1(claims: List[Dict[str, Any]]) -> str:
+    def _narrative_v1(
+        claims: List[Dict[str, Any]],
+        registry_report: Dict[str, Any],
+        val_report: Dict[str, Any],
+    ) -> str:
         verified = [c for c in claims if c.get("status") == "VERIFIED"]
         other = [c for c in claims if c.get("status") != "VERIFIED"]
 
-        lines = []
+        lines: List[str] = []
+        lines.append(f"SOT: {val_report.get('status', 'UNKNOWN')} | REGISTRY: {registry_report.get('status', 'UNKNOWN')}")
+        if registry_report.get("status") != "HEALTHY":
+            lines.append(f"REGISTRY_ISSUES: {len(registry_report.get('issues', []))}")
+
         lines.append(f"VERIFIED: {len(verified)} | OTHER: {len(other)}")
 
-        for c in verified[:5]:
+        for c in verified[:6]:
             lines.append(f"- {c.get('metric_name', c.get('metric'))}: {c.get('value')}")
 
-        for c in other[:8]:
+        for c in other[:10]:
             lines.append(f"- {c.get('metric_name', c.get('metric'))}: {c.get('status')} ({c.get('reason','')})")
 
         return "\n".join(lines)
